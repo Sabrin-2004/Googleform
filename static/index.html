@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gamma Group · Executive Portfolio Command Center</title>
+  
+  <!-- External Libraries: SheetJS for Client-Side Excel/CSV Processing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  
+  <!-- Modern Typography: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Dashboard Core Stylesheet -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Toast Container -->
+  <div id="gcc-toast-container"></div>
+
+  <!-- Modal Dialogs Container -->
+  <div id="gcc-modal-container"></div>
+
+  <!-- Main Shell Application View -->
+  <div class="gcc-shell" id="gcc-app">
+    <div style="padding:60px 20px;text-align:center;font-family:var(--font-mono);color:var(--text-muted);">
+      Initializing Executive Command Center…
+    </div>
+  </div>
+
+  <!-- Modular JavaScript Engine -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

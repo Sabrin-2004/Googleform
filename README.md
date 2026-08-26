@@ -1,93 +1,170 @@
-# Google Form Dashboard
+# CEO Portfolio Command Center — Backend & Multi-Sheet Pipeline
 
+A production-ready executive dashboard and backend architecture designed for multi-company portfolio tracking, strategic decisions, priorities, and real-time synchronization with **Google Sheets (including 3+ sheets/tabs)** and **Multi-File CSV / Excel workbooks**.
 
+---
 
-## Getting started
+## 🌟 Key Capabilities
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+1. **Multi-Sheet Google Sheets Sync (3+ Sheets/Tabs)**:
+   - Synchronizes directly via Google Cloud Service Account (`credentials.json`) or Public/Published sheet link.
+   - Automatically parses multiple tabs/sheets:
+     - **Domain-based Tabs**: `Actions`, `Decisions`, `Priorities`.
+     - **Company-based Tabs**: `Aarna`, `Abhee`, `Pranik`, `Miraee`, `RedT`, `Casa Monde`.
+2. **Multi-File CSV & Excel Uploader**:
+   - Drag-and-drop 3+ `.csv` files simultaneously or upload a multi-tab `.xlsx` workbook.
+   - Automatic column fuzzy matching (matches `Item`, `Task`, `Action Item`, `Status`, `Owner`, `Founder Dependency`, `Comments`, `Decision`, `Impact`, `Horizon`, `Why`, etc.).
+3. **Robust Backend API (`app.py`)**:
+   - High-speed REST API for complete CRUD operations on actions, decisions, priorities, and settings.
+   - Atomic disk writes to `data/dashboard_data.json` with automated timestamped backup rotation.
+4. **Universal Frontend (`CEO_Dashboard.html`)**:
+   - Works seamlessly when connected to the backend server at `http://localhost:5000`.
+   - Automatically falls back to browser `localStorage` when opened as a static local file without a server.
+   - Live status indicator (🟢 Backend Live / 🟡 Standalone, ☁️ Google Sheets Sync badge).
+   - Instant export to multi-tab Excel (`.xlsx`), CSV archive (`.zip`), or JSON.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 📁 Project Structure
 
 ```
-cd existing_repo
-git remote add origin http://gitlab.mondee.com/aviators/google-form-dashboard.git
-git branch -M main
-git push -uf origin main
+gfd/
+├── app.py                      # FastAPI REST API server & router
+├── CEO_Dashboard.html          # Executive frontend command center
+├── requirements.txt            # Python dependencies (FastAPI, uvicorn, pandas, openpyxl, etc.)
+├── .env.example                # Environment variable template
+├── .env                        # Local environment configuration
+├── run.bat                     # 1-click startup script for Windows Command Prompt
+├── run.ps1                     # 1-click startup script for Windows PowerShell
+├── services/
+│   ├── __init__.py
+│   ├── storage.py              # Persistent storage & backup engine (JSON database)
+│   ├── sheets_sync.py          # Google Sheets API client & 3+ tab parser
+│   ├── data_validator.py       # Column normalizer & schema validator
+│   └── importer.py             # Multi-CSV and Excel parser & exporter
+├── data/
+│   ├── dashboard_data.json     # Primary active database
+│   └── backups/                # Automated historical backups
+├── sample_data/
+│   ├── actions.csv             # Sample Action items CSV
+│   ├── decisions.csv           # Sample Decisions CSV
+│   ├── priorities.csv          # Sample Strategic Priorities CSV
+│   ├── portfolio_multi_sheet.xlsx # Sample 4-tab Excel workbook
+│   └── generate_portfolio_excel.py # Multi-tab Excel generator script
+└── tests/
+    └── test_backend.py         # Full backend test suite
 ```
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](http://gitlab.mondee.com/aviators/google-form-dashboard/-/settings/integrations)
+## 🚀 Quick Start (Running Locally)
 
-## Collaborate with your team
+### Option A: 1-Click Launch on Windows
+Double-click `run.bat` or run in PowerShell:
+```powershell
+.\run.ps1
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Option B: Manual Command Line
+```powershell
+# 1. Install dependencies
+python -m pip install -r requirements.txt
 
-## Test and Deploy
+# 2. Start the server
+python app.py
+```
+Open your browser to: **`http://localhost:5000`**
 
-Use the built-in continuous integration in GitLab.
+---
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## 📊 Google Sheets Setup Guide (Step-by-Step)
 
-***
+### Step 12: Create your Google Sheet
+1. Open [sheets.google.com](https://sheets.google.com) and click **"+" (Blank Spreadsheet)**.
+2. Name your spreadsheet (e.g. `Portfolio Master Tracker`).
 
-# Editing this README
+### Step 13: Share with Service Account
+1. From Google Cloud Console, create a **Service Account** and download its JSON key file as `credentials.json`.
+2. Place `credentials.json` in the root folder of this project (`c:\Users\Ssabrin\Desktop\gfd\credentials.json`).
+3. Open `credentials.json` and copy the `client_email` address (e.g. `robot-portfolio@your-project.iam.gserviceaccount.com`).
+4. In your Google Sheet, click the top-right **Share** button, paste the `client_email`, give it **Viewer** or **Editor** permissions, and click **Share**.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Step 14: Get your Spreadsheet ID
+1. Look at the URL in your browser:
+   ```
+   https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890/edit#gid=0
+   ```
+2. The ID is the long string between `/d/` and `/edit` (e.g. `1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890`).
 
-## Suggestions for a good README
+### Step 17: Configure Environment Variables
+You can either enter the ID directly in the Dashboard UI (under the **Data** tab) or set it in your `.env` / terminal:
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+**Windows PowerShell:**
+```powershell
+$env:GOOGLE_SHEET_ID="1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890"
+$env:GOOGLE_CREDENTIALS_FILE="credentials.json"
+```
 
-## Name
-Choose a self-explaining name for your project.
+**Windows Command Prompt (cmd):**
+```cmd
+set GOOGLE_SHEET_ID=1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890
+set GOOGLE_CREDENTIALS_FILE=credentials.json
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Or simply add it to `.env`:
+```ini
+GOOGLE_SHEET_ID=1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890
+GOOGLE_CREDENTIALS_FILE=credentials.json
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+---
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## 📑 Multi-Sheet Formats Supported (3+ Sheets/Tabs)
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+The backend auto-detects both multi-sheet architectures:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### Model 1: Domain Tabs (Recommended for Master Review)
+Create 3+ tabs in your Google Sheet or Excel workbook:
+- **Tab 1 (`Actions`)**: Columns: `Company`, `Function`, `Action Item`, `Status`, `Owner`, `Founder Dependency`, `Comments`
+- **Tab 2 (`Decisions`)**: Columns: `Decision`, `Owner`, `Status`, `Impact if delayed`, `Deadline`
+- **Tab 3 (`Priorities`)**: Columns: `Priority`, `Group`, `Focus Area`, `Why`, `Horizon`
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Model 2: Company Tabs (Recommended for Multi-Venture Groups)
+Create separate tabs for each company:
+- **Tab 1 (`Aarna`)**: Action items for Aarna.
+- **Tab 2 (`Pranik`)**: Action items for Pranik.
+- **Tab 3 (`Abhee`)**: Action items for Abhee.
+- **Tab 4 (`Decisions`)**: Group decisions queue.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+---
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## 🧪 Testing Backend & Uploads
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Run the automated test suite anytime:
+```powershell
+python -m unittest discover -s tests
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+---
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## 📡 REST API Reference
 
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | Serves dashboard frontend |
+| `GET` | `/api/health` | Backend status & credentials check |
+| `GET` | `/api/data` | Returns complete dashboard state |
+| `POST`| `/api/save` | Saves entire state |
+| `POST`| `/api/actions` | Create a new action item |
+| `PUT` | `/api/actions/<id>` | Update action item |
+| `DELETE`| `/api/actions/<id>` | Delete action item |
+| `POST`| `/api/decisions` | Create decision |
+| `PUT` | `/api/decisions/<id>` | Update decision |
+| `DELETE`| `/api/decisions/<id>` | Delete decision |
+| `POST`| `/api/priorities` | Create priority |
+| `PUT` | `/api/priorities/<id>` | Update priority |
+| `DELETE`| `/api/priorities/<id>` | Delete priority |
+| `POST`| `/api/sync/google-sheets` | Trigger Google Sheets sync |
+| `POST`| `/api/upload` | Multi-file CSV / Excel upload |
+| `GET` | `/api/export/excel` | Download multi-tab `.xlsx` |
+| `GET` | `/api/export/csv` | Download `.zip` of CSVs |
