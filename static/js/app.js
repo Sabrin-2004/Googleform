@@ -475,6 +475,178 @@
     }
   }
 
+  // ==========================================================================
+  // Credentials Manager Logic (Hot-Reload without server restart)
+  // ==========================================================================
+
+  let _stagedCredsFile = null;
+
+  async function loadCredsStatus() {
+    const pill = document.getElementById('creds-status-pill');
+    const emailEl = document.getElementById('creds-email-display');
+    const projectEl = document.getElementById('creds-project-display');
+    const keyIdEl = document.getElementById('creds-keyid-display');
+    const sourceEl = document.getElementById('creds-source-display');
+    const hintEl = document.getElementById('creds-share-hint');
+    if (!pill) return;
+
+    try {
+      const data = await apiFetch('/api/credentials/status');
+      if (data.hasCredentials) {
+        pill.textContent = '🟢 Active';
+        pill.style.background = 'var(--done)';
+        if (emailEl) emailEl.textContent = data.clientEmail || '—';
+        if (projectEl) projectEl.textContent = data.projectId || '—';
+        if (keyIdEl) keyIdEl.textContent = data.privateKeyId ? data.privateKeyId.substring(0, 12) + '…' : '—';
+        if (sourceEl) sourceEl.textContent = data.source || '—';
+        if (hintEl) hintEl.textContent = data.shareInstruction || '';
+      } else {
+        pill.textContent = '⚪ Not Configured';
+        pill.style.background = 'var(--hold)';
+        if (emailEl) emailEl.textContent = 'No credentials found';
+        if (hintEl) hintEl.textContent = 'Upload a credentials.json file below to connect to Google Sheets API.';
+      }
+    } catch (e) {
+      if (pill) { pill.textContent = '🔴 Error'; pill.style.background = 'var(--attention)'; }
+    }
+  }
+
+  function wireCredsManager() {
+    // Load status immediately on render
+    loadCredsStatus();
+
+    // Copy email button
+    const copyBtn = document.getElementById('btn-copy-sa-email');
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        const email = document.getElementById('creds-email-display')?.textContent?.trim();
+        if (email && email !== 'Loading…' && email !== 'No credentials found') {
+          navigator.clipboard.writeText(email).then(() => Toast.success('Service Account email copied!')).catch(() => Toast.error('Copy failed'));
+        }
+      };
+    }
+
+    // Test connection button
+    const testBtn = document.getElementById('btn-test-creds');
+    if (testBtn) {
+      testBtn.onclick = async () => {
+        testBtn.disabled = true;
+        testBtn.textContent = '⏳ Testing…';
+        const sheetId = document.getElementById('gs-sheet-id')?.value?.trim() || state.settings.googleSheets?.sheetId || '';
+        const resultEl = document.getElementById('creds-test-result');
+        try {
+          const res = await apiFetch('/api/credentials/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sheetId: sheetId || undefined })
+          });
+          if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.style.background = 'rgba(63,185,80,0.12)';
+            resultEl.style.border = '1px solid var(--done)';
+            resultEl.style.color = 'var(--done)';
+            const tabs = res.details?.worksheets ? `<br><strong>Worksheets:</strong> ${res.details.worksheets.join(', ')}` : '';
+            resultEl.innerHTML = `✅ ${res.message}${tabs}`;
+          }
+          Toast.success('Connection test passed!');
+        } catch (err) {
+          if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.style.background = 'rgba(248,81,73,0.12)';
+            resultEl.style.border = '1px solid var(--attention)';
+            resultEl.style.color = 'var(--attention)';
+            resultEl.innerHTML = `❌ ${err.message}`;
+          }
+          Toast.error(`Test failed: ${err.message}`);
+        } finally {
+          testBtn.disabled = false;
+          testBtn.innerHTML = `${icon('zap')} Test Connection`;
+        }
+      };
+    }
+
+    // Browse button
+    const browseBtn = document.getElementById('creds-browse-btn');
+    const fileInput = document.getElementById('creds-file-input');
+    if (browseBtn && fileInput) browseBtn.onclick = () => fileInput.click();
+
+    // Drag & drop zone for credentials.json
+    const dropzone = document.getElementById('creds-dropzone');
+    if (dropzone) {
+      dropzone.ondragover = (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--progress)'; };
+      dropzone.ondragleave = () => { dropzone.style.borderColor = ''; };
+      dropzone.ondrop = (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = '';
+        const f = e.dataTransfer.files[0];
+        if (f) stageCredsFile(f);
+      };
+    }
+
+    if (fileInput) {
+      fileInput.onchange = () => { if (fileInput.files[0]) stageCredsFile(fileInput.files[0]); };
+    }
+
+    // Upload & Activate button
+    const uploadBtn = document.getElementById('btn-upload-creds');
+    if (uploadBtn) {
+      uploadBtn.onclick = async () => {
+        if (!_stagedCredsFile) { Toast.error('No file selected.'); return; }
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = '⏳ Uploading…';
+        try {
+          const formData = new FormData();
+          formData.append('file', _stagedCredsFile);
+          const res = await fetch('/api/credentials/upload', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Upload failed');
+          Toast.success(data.message || 'Credentials activated!');
+          _stagedCredsFile = null;
+          const stagedEl = document.getElementById('creds-staged-name');
+          if (stagedEl) stagedEl.style.display = 'none';
+          uploadBtn.style.display = 'none';
+          await loadCredsStatus();
+        } catch (err) {
+          Toast.error(`Upload failed: ${err.message}`);
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.innerHTML = `${icon('upload')} Upload & Activate Key`;
+        }
+      };
+    }
+
+    // Cleanup fallback button
+    const cleanupBtn = document.getElementById('btn-cleanup-fallback');
+    if (cleanupBtn) {
+      cleanupBtn.onclick = async () => {
+        if (!confirm('Remove all "Google Sheet" fallback rows? This cannot be undone.')) return;
+        cleanupBtn.disabled = true;
+        try {
+          const res = await apiFetch('/api/companies/cleanup-fallback', { method: 'POST' });
+          Toast.success(`Removed ${res.removedActions} action(s), ${res.removedDecisions} decision(s), ${res.removedPriorities} priority item(s) labelled "Google Sheet".`);
+          const latestData = await apiFetch('/api/data');
+          state = latestData;
+          localStorage.setItem('gcc-data', JSON.stringify(state));
+          render();
+        } catch (err) {
+          Toast.error(`Cleanup failed: ${err.message}`);
+        } finally {
+          cleanupBtn.disabled = false;
+        }
+      };
+    }
+  }
+
+  function stageCredsFile(file) {
+    if (!file.name.endsWith('.json')) { Toast.error('Please select a .json credentials file.'); return; }
+    _stagedCredsFile = file;
+    const stagedEl = document.getElementById('creds-staged-name');
+    if (stagedEl) { stagedEl.style.display = 'block'; stagedEl.textContent = `📄 Staged: ${file.name} (${(file.size / 1024).toFixed(1)} KB) — ready to upload`; }
+    const uploadBtn = document.getElementById('btn-upload-creds');
+    if (uploadBtn) uploadBtn.style.display = 'inline-flex';
+    Toast.info(`${file.name} staged. Click "Upload & Activate Key" to apply.`);
+  }
+
   function editingLocked(){
     return !!(state.settings && state.settings.pin && state.settings.pin.length && !sessionUnlocked);
   }
@@ -1604,7 +1776,7 @@
           <p>Connect and synchronize Google Sheets directly to Register, Decisions, Priorities, or Auto-Detect.</p>
           
           <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:14px;font-size:11.5px;color:var(--text-muted);line-height:1.4;">
-            <strong style="color:var(--text);">Sharing Guide:</strong> In Google Sheets, click <em>Share</em> (top right) &rarr; set to <strong>Anyone with the link (Viewer)</strong>, or configure <code>credentials.json</code>.
+            <strong style="color:var(--text);">Mondee Inc / Domain Sharing:</strong> In Google Sheets, click <em>Share</em> (top right) &rarr; paste your Service Account email in <strong>Add people, groups</strong> (Viewer). Or use the <strong>Webhooks</strong> tab for live Apps Script sync.
           </div>
 
           <div class="gcc-form">
@@ -1648,8 +1820,56 @@
           </div>
         </div>
 
+        <!-- ==========================================
+             Service Account Credentials Manager
+             ========================================== -->
+        <div class="gcc-card" id="creds-manager-card">
+          <h3>
+            <span style="display:inline-flex;align-items:center;gap:6px;">
+              <span class="gcc-icon-inline">${icon('key')}</span>
+              Service Account Key Manager
+            </span>
+            <span id="creds-status-pill" class="gcc-status-pill" style="background:var(--hold);color:#fff;">Checking…</span>
+          </h3>
+          <p>Manage your Google Service Account credentials. Upload a new key file when Google disables an old one — <strong>no server restart needed</strong>.</p>
+
+          <div id="creds-info-block" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:12px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span style="color:var(--text-muted);">Service Account Email:</span>
+              <code id="creds-email-display" style="color:var(--progress);font-size:11.5px;">Loading…</code>
+              <button id="btn-copy-sa-email" class="gcc-btn-sm" title="Copy email to clipboard" style="padding:2px 8px;font-size:10.5px;">Copy</button>
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:6px;">
+              <span style="color:var(--text-muted);">Project: <code id="creds-project-display" style="color:var(--text);">—</code></span>
+              <span style="color:var(--text-muted);">Key ID: <code id="creds-keyid-display" style="color:var(--text);">—</code></span>
+              <span style="color:var(--text-muted);">Source: <code id="creds-source-display" style="color:var(--text);">—</code></span>
+            </div>
+            <div id="creds-share-hint" style="margin-top:6px;padding:6px 9px;background:rgba(94,158,255,0.08);border-radius:4px;color:var(--text-muted);font-size:11px;"></div>
+          </div>
+
+          <!-- Test Connection result -->
+          <div id="creds-test-result" style="display:none;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:12px;font-size:12px;"></div>
+
+          <!-- Upload new key area -->
+          <div class="gcc-dropzone" id="creds-dropzone" style="padding:18px;min-height:unset;border-style:dashed;">
+            <input type="file" id="creds-file-input" accept=".json" style="display:none;"/>
+            <div class="gcc-dropzone-icon" style="font-size:26px;">${icon('key')}</div>
+            <div class="gcc-dropzone-text">Drag & drop new <code>credentials.json</code> here, or <span style="color:var(--progress);text-decoration:underline;cursor:pointer;" id="creds-browse-btn">browse</span></div>
+            <div class="gcc-dropzone-sub">Upload the new JSON key from Google Cloud Console to hot-reload credentials</div>
+          </div>
+
+          <div id="creds-staged-name" style="display:none;margin-top:8px;font-size:12px;color:var(--text-muted);padding:5px 10px;background:var(--bg);border-radius:4px;"></div>
+
+          <div class="gcc-row-flex" style="margin-top:12px;gap:10px;flex-wrap:wrap;">
+            <button class="gcc-btn" id="btn-test-creds">${icon('zap')} Test Connection</button>
+            <button class="gcc-btn" id="btn-upload-creds" style="display:none;background:var(--done);">${icon('upload')} Upload & Activate Key</button>
+            <button class="gcc-btn" id="btn-cleanup-fallback" style="background:var(--attention);" title="Remove 'Google Sheet' fallback rows left by previous failed syncs">${icon('trash')} Clean Up Fallback Data</button>
+          </div>
+        </div>
+
         <!-- Multi-File CSV & Excel Uploader -->
         <div class="gcc-card">
+
           <h3><span class="gcc-icon-inline">${icon('upload')}</span>Upload Multi-Tab Excel or 3+ CSV Files</h3>
           <p>Upload a multi-sheet Excel workbook (<code>.xlsx</code> / <code>.xls</code>) or multiple <code>.csv</code> files simultaneously with smart auto-detection and overlap resolution.</p>
           
@@ -2646,6 +2866,9 @@ function onFormSubmit(e) {
     }
 
     if(view==='data'){
+      // Wire Credentials Manager
+      wireCredsManager();
+
       const syncGsBtn = document.getElementById('btn-sync-gs');
       if(syncGsBtn) syncGsBtn.onclick = async ()=>{
         const sheetId = document.getElementById('gs-sheet-id').value.trim();

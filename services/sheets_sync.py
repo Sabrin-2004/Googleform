@@ -51,8 +51,43 @@ def extract_sheet_id(input_str: str) -> str:
     clean_id, _, _ = parse_sheet_input(input_str)
     return clean_id
 
+# In-memory dynamic credentials override
+_in_memory_creds_info: Optional[Dict[str, Any]] = None
+
+def set_in_memory_credentials(creds_dict: Dict[str, Any]):
+    """Sets dynamic in-memory credentials without requiring server restart."""
+    global _in_memory_creds_info
+    _in_memory_creds_info = creds_dict
+
+def get_loaded_credentials_dict() -> Optional[Dict[str, Any]]:
+    """Returns the parsed credentials dictionary from memory, environment, or file."""
+    global _in_memory_creds_info
+    if _in_memory_creds_info:
+        return _in_memory_creds_info
+    
+    import json
+    env_json = os.getenv('GOOGLE_CREDENTIALS_JSON') or os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+    if env_json:
+        try:
+            return json.loads(env_json) if isinstance(env_json, str) else env_json
+        except Exception:
+            pass
+
+    creds_path = get_credentials_path()
+    if creds_path and os.path.exists(creds_path) and creds_path not in ('__ENV_JSON__', '__MEMORY_JSON__'):
+        try:
+            with open(creds_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
 def get_credentials_path() -> Optional[str]:
-    """Finds the credentials.json path from environment or workspace."""
+    """Finds the credentials.json path from environment, in-memory, or workspace."""
+    global _in_memory_creds_info
+    if _in_memory_creds_info:
+        return '__MEMORY_JSON__'
+
     if os.getenv('GOOGLE_CREDENTIALS_JSON') or os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON'):
         return '__ENV_JSON__'
         
@@ -71,10 +106,109 @@ def get_credentials_path() -> Optional[str]:
             return c
     return None
 
+def get_service_account_email() -> Optional[str]:
+    """Extracts client_email from credentials file, memory, or environment variable."""
+    creds_dict = get_loaded_credentials_dict()
+    if creds_dict and isinstance(creds_dict, dict):
+        return creds_dict.get('client_email')
+    return None
+
+def get_credentials_info() -> Dict[str, Any]:
+    """Returns metadata about the active credentials."""
+    global _in_memory_creds_info
+    creds_dict = get_loaded_credentials_dict()
+    if not creds_dict:
+        return {
+            "hasCredentials": False,
+            "source": "none",
+            "clientEmail": None,
+            "projectId": None,
+            "privateKeyId": None,
+            "filePath": None
+        }
+
+    source = "memory" if _in_memory_creds_info else ("env_var" if (os.getenv('GOOGLE_CREDENTIALS_JSON') or os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')) else "file")
+    creds_path = get_credentials_path()
+
+    return {
+        "hasCredentials": True,
+        "source": source,
+        "clientEmail": creds_dict.get("client_email"),
+        "projectId": creds_dict.get("project_id"),
+        "privateKeyId": creds_dict.get("private_key_id"),
+        "filePath": os.path.basename(creds_path) if (creds_path and os.path.exists(creds_path)) else creds_path
+    }
+
+def validate_and_test_credentials(creds_dict: Optional[Dict[str, Any]] = None, sheet_id: Optional[str] = None) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    Validates a Service Account credentials object or the currently loaded credentials.
+    Performs OAuth token generation and optionally checks access to a Google Sheet.
+    """
+    if creds_dict is None:
+        creds_dict = get_loaded_credentials_dict()
+
+    if not creds_dict or not isinstance(creds_dict, dict):
+        return False, "No Google Service Account credentials provided or configured.", {}
+
+    required_fields = ['type', 'project_id', 'private_key', 'client_email']
+    missing = [f for f in required_fields if not creds_dict.get(f)]
+    if missing:
+        return False, f"Invalid Service Account JSON. Missing required fields: {', '.join(missing)}.", {}
+
+    if creds_dict.get('type') != 'service_account':
+        return False, f"Invalid credential type '{creds_dict.get('type')}'. Expected 'service_account'.", {}
+
+    try:
+        from google.oauth2.service_account import Credentials
+        import google.auth.transport.requests
+
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets.readonly',
+            'https://www.googleapis.com/auth/drive.readonly'
+        ]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        auth_req = google.auth.transport.requests.Request()
+        creds.refresh(auth_req)
+
+        details: Dict[str, Any] = {
+            "clientEmail": creds_dict.get("client_email"),
+            "projectId": creds_dict.get("project_id"),
+            "privateKeyId": creds_dict.get("private_key_id"),
+            "tokenValid": True
+        }
+
+        # If sheet_id is provided, verify actual sheet access
+        if sheet_id:
+            clean_id, _, _ = parse_sheet_input(str(sheet_id).strip())
+            if clean_id:
+                import gspread
+                gc = gspread.authorize(creds)
+                spreadsheet = gc.open_by_key(clean_id)
+                worksheets = [ws.title for ws in spreadsheet.worksheets()]
+                details["sheetTitle"] = spreadsheet.title
+                details["worksheets"] = worksheets
+                return True, f"Successfully authenticated and verified access to '{spreadsheet.title}' with {len(worksheets)} worksheet(s): {', '.join(worksheets)}.", details
+
+        return True, f"Google Service Account key is active and valid for {creds_dict.get('client_email')}.", details
+
+    except Exception as e:
+        cause = getattr(e, '__cause__', None)
+        error_msg = str(cause) if (cause and str(cause).strip()) else str(e)
+        client_email = creds_dict.get('client_email', 'service account email')
+        project_id = creds_dict.get('project_id', 'GCP Project')
+
+        if "invalid_grant" in error_msg or "Invalid JWT Signature" in error_msg:
+            return False, f"Key Disabled or Expired ('Invalid JWT Signature'). In Google Cloud Console for project '{project_id}', create a new JSON key for '{client_email}'.", {"error": "invalid_jwt"}
+        if "PERMISSION_DENIED" in error_msg or "403" in error_msg or "Access Denied" in error_msg:
+            return False, f"Access Denied (403). In Google Sheets, click 'Share' and paste '{client_email}' into 'Add people, groups' (Viewer).", {"error": "permission_denied"}
+        if "sheets.googleapis.com" in error_msg or "has not been used" in error_msg or "disabled" in error_msg:
+            return False, f"Google Sheets API is not enabled in your Google Cloud Project ({project_id}). Please enable Google Sheets API & Google Drive API in Google Cloud Console.", {"error": "api_disabled"}
+        
+        return False, f"Authentication error: {error_msg}", {"error": error_msg}
+
 def sync_via_service_account(sheet_id: str, creds_path: str) -> Tuple[bool, str, Dict[str, List[Dict[str, Any]]]]:
     """Fetches all worksheets from a Google Sheet using a Service Account with smart header detection."""
     try:
-        import json
         import gspread
         from google.oauth2.service_account import Credentials
 
@@ -83,10 +217,9 @@ def sync_via_service_account(sheet_id: str, creds_path: str) -> Tuple[bool, str,
             'https://www.googleapis.com/auth/drive.readonly'
         ]
         
-        env_json = os.getenv('GOOGLE_CREDENTIALS_JSON') or os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
-        if env_json:
-            creds_info = json.loads(env_json) if isinstance(env_json, str) else env_json
-            creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+        creds_dict = get_loaded_credentials_dict()
+        if creds_dict:
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         else:
             creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
 
@@ -122,16 +255,65 @@ def sync_via_service_account(sheet_id: str, creds_path: str) -> Tuple[bool, str,
                     
         return True, f"Successfully fetched {len(sheets_data)} worksheet(s) via Service Account.", sheets_data
     except Exception as e:
-        error_msg = str(e)
-        if "PERMISSION_DENIED" in error_msg or "403" in error_msg:
-            return False, "Google Sheet Access Denied (403). Make sure you shared your Google Sheet with the robot client_email in your credentials.json.", {}
+        cause = getattr(e, '__cause__', None)
+        error_msg = str(cause) if (cause and str(cause).strip()) else (str(e) if str(e).strip() else repr(e))
+        client_email = get_service_account_email() or "your service account email"
+        project_id = (get_loaded_credentials_dict() or {}).get('project_id', 'your Google Cloud Project')
+        
+        if "sheets.googleapis.com" in error_msg or "has not been used" in error_msg or "disabled" in error_msg:
+            return False, f"Google Sheets API is not enabled in your Google Cloud Project ({project_id}). Enable Google Sheets API & Drive API in GCP Console.", {}
+        if "PERMISSION_DENIED" in error_msg or "403" in error_msg or "Access Denied" in error_msg or isinstance(e, PermissionError):
+            return False, f"Access Denied (403). In Google Sheets, click 'Share' (top-right) and paste '{client_email}' into 'Add people, groups' (Viewer).", {}
         return False, f"Service Account error: {error_msg}", {}
 
 def sync_via_public_csv(sheet_id: str, gid: Optional[str] = None, is_published: bool = False) -> Tuple[bool, str, Dict[str, List[Dict[str, Any]]]]:
     """
-    Attempts to fetch Google Sheet data via public export / CSV endpoints.
-    Tries multiple standard Google endpoints with smart header detection and encoding fallbacks.
+    Intelligently fetches all tabs from a Google Sheet shared via public/link access.
+    1. Scans the public spreadsheet structure to discover all individual tab names (e.g. pranik, abhi, arna, miraa, edT).
+    2. Downloads and parses each worksheet individually by tab name.
+    3. Falls back to single CSV endpoints if tab extraction is unavailable.
     """
+    sheets_data: Dict[str, List[Dict[str, Any]]] = {}
+
+    # Stage 1: Try Multi-Tab Auto-Discovery via htmlview
+    if not is_published:
+        try:
+            import urllib.parse
+            html_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/htmlview"
+            req = urllib.request.Request(html_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    html_content = resp.read().decode('utf-8', errors='ignore')
+                    # Discover tab names: items.push({name: "tabName", ...})
+                    discovered_tabs = re.findall(r'items\.push\(\{\s*name:\s*[\'"]([^\'"]+)[\'"]', html_content)
+                    if not discovered_tabs:
+                        discovered_tabs = re.findall(r'<li id=[\'"]sheet-button-[^\'"]+[\'"][^>]*><a[^>]*>([^<]+)</a>', html_content)
+
+                    if discovered_tabs:
+                        for tab_name in discovered_tabs:
+                            clean_tab = tab_name.strip()
+                            if not clean_tab:
+                                continue
+                            encoded_tab = urllib.parse.quote(clean_tab)
+                            tab_csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={encoded_tab}"
+                            try:
+                                tab_req = urllib.request.Request(tab_csv_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                                with urllib.request.urlopen(tab_req, timeout=10) as tab_resp:
+                                    if tab_resp.status == 200:
+                                        tab_bytes = tab_resp.read()
+                                        stream = io.BytesIO(tab_bytes)
+                                        _, records = parse_csv_file(stream, f"{clean_tab}.csv")
+                                        if records:
+                                            sheets_data[clean_tab] = records
+                            except Exception as tab_err:
+                                logger.warning(f"Failed to fetch public tab '{clean_tab}': {tab_err}")
+
+                        if sheets_data:
+                            return True, f"Successfully extracted {len(sheets_data)} worksheet(s) via Link Sharing: {', '.join(sheets_data.keys())}.", sheets_data
+        except Exception as discover_err:
+            logger.info(f"Public multi-tab discovery note: {discover_err}")
+
+    # Stage 2: Fallback to single CSV endpoints if multi-tab was not available
     candidate_urls = []
     gid_param = f"&gid={gid}" if gid else ""
     if is_published:
@@ -155,26 +337,26 @@ def sync_via_public_csv(sheet_id: str, gid: Optional[str] = None, is_published: 
                 if response.status == 200:
                     raw_bytes = response.read()
                     stream = io.BytesIO(raw_bytes)
-                    s_name, records = parse_csv_file(stream, "GoogleSheet_Export.csv")
+                    s_name, records = parse_csv_file(stream, "Sheet1.csv")
                     if records:
-                        return True, "Fetched public sheet data successfully.", {"Google Sheet": records}
+                        return True, "Fetched public sheet data successfully.", {"Sheet1": records}
         except urllib.error.HTTPError as e:
             last_status = e.code
             last_error = e.reason
             if e.code in [401, 403]:
-                # Stop on unauthorized/forbidden - sheet is private
                 break
         except urllib.error.URLError as e:
             last_error = str(e.reason)
         except Exception as e:
             last_error = str(e)
 
+    client_email = get_service_account_email() or "your service account email"
     if last_status in [401, 403]:
-        return False, "Google Sheet Access Denied (Private / Restricted). To fix: In your Google Sheet, click the top-right 'Share' button, and change General Access to 'Anyone with the link' (Viewer), or configure a Service Account credentials.json.", {}
+        return False, f"Access Denied (403). In Google Sheets, click 'Share' (top-right) and set 'General Access' to 'Anyone with the link (Viewer)', or add '{client_email}' to 'Add people, groups'.", {}
     elif last_status == 404:
         return False, "Google Sheet not found (404). Please verify that the Sheet ID or URL is correct.", {}
     else:
-        return False, f"Could not fetch Google Sheet data ({last_error or 'HTTP Error'}). Ensure Sheet is shared as 'Anyone with the link' (Viewer).", {}
+        return False, f"Could not fetch Google Sheet data ({last_error or 'HTTP Error'}). In Google Sheets, click 'Share' and set 'Anyone with the link' (Viewer).", {}
 
 def normalize_target_key(target: Optional[str]) -> str:
     """Normalizes user target destination string."""
@@ -292,7 +474,7 @@ def perform_google_sheets_sync(
             message = pub_message
             sheets_data = pub_data
         elif not success:
-            final_msg = message if (message and "PERMISSION_DENIED" in message) else pub_message
+            final_msg = message if message else pub_message
             return False, final_msg, current_state, {}
 
     # Process extracted multi-sheet data targeting the designated page

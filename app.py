@@ -28,6 +28,9 @@ from services.sheets_sync import (
     perform_google_sheets_sync,
     extract_sheet_id,
     get_credentials_path,
+    get_credentials_info,
+    set_in_memory_credentials,
+    validate_and_test_credentials,
     process_multi_sheet_data
 )
 from services.importer import (
@@ -101,7 +104,7 @@ def serve_dashboard():
 def health_check():
     """Returns backend health, Google Sheets config status, and storage status."""
     state = get_state()
-    creds_path = get_credentials_path()
+    creds_info = get_credentials_info()
     configured_sheet_id = (
         os.getenv("GOOGLE_SHEET_ID")
         or state.get("settings", {}).get("googleSheets", {}).get("sheetId", "")
@@ -110,12 +113,163 @@ def health_check():
     return {
         "status": "healthy",
         "timestamp": state.get("lastUpdated"),
-        "hasCredentials": bool(creds_path),
-        "credentialsFile": os.path.basename(creds_path) if creds_path else None,
+        "hasCredentials": creds_info.get("hasCredentials", False),
+        "credentialsFile": creds_info.get("filePath"),
+        "credentialsSource": creds_info.get("source", "none"),
+        "serviceAccountEmail": creds_info.get("clientEmail"),
         "configuredSheetId": configured_sheet_id,
         "totalActions": len(state.get("actions", [])),
         "totalDecisions": len(state.get("decisions", [])),
         "totalPriorities": len(state.get("priorities", [])),
+    }
+
+# ==========================================
+# Credentials Management API
+# ==========================================
+
+@app.get("/api/credentials/status")
+def credentials_status():
+    """Returns metadata about the currently loaded Google Service Account credentials."""
+    info = get_credentials_info()
+    state = get_state()
+    sheet_id = (
+        os.getenv("GOOGLE_SHEET_ID")
+        or state.get("settings", {}).get("googleSheets", {}).get("sheetId", "")
+    )
+    return {
+        **info,
+        "configuredSheetId": sheet_id,
+        "shareInstruction": (
+            f"Share your Google Sheet with: {info['clientEmail']} (Viewer)"
+            if info.get("clientEmail") else "No credentials loaded."
+        )
+    }
+
+@app.post("/api/credentials/test")
+async def test_credentials(request: Request):
+    """
+    Live-tests the currently loaded credentials (or posted credentials JSON) against Google API.
+    Optionally validates access to a specific Google Sheet if sheetId is provided.
+    """
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    creds_dict = body.get("credentials") or None
+    sheet_id = body.get("sheetId") or body.get("sheet_id") or None
+
+    success, msg, details = validate_and_test_credentials(creds_dict=creds_dict, sheet_id=sheet_id)
+    if success:
+        return {"success": True, "message": msg, "details": details}
+    else:
+        raise HTTPException(status_code=400, detail=msg)
+
+@app.post("/api/credentials/upload")
+async def upload_credentials(
+    request: Request,
+    file: Optional[UploadFile] = File(default=None)
+):
+    """
+    Accepts a new Service Account JSON key either as a file upload or raw JSON in request body.
+    Validates the key with Google OAuth before applying it.
+    Hot-reloads credentials in memory and optionally saves to credentials.json on disk.
+    No server restart required.
+    """
+    import json
+
+    creds_dict = None
+    save_to_disk = True
+
+    # 1. Try file upload
+    if file and file.filename:
+        try:
+            raw = await file.read()
+            creds_dict = json.loads(raw.decode("utf-8"))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Could not parse uploaded file as JSON: {e}")
+    else:
+        # 2. Try JSON body
+        try:
+            body = await request.json()
+            if isinstance(body, dict) and body.get("type") == "service_account":
+                creds_dict = body
+            elif isinstance(body, dict) and body.get("credentials"):
+                creds_dict = body["credentials"]
+                save_to_disk = body.get("saveToDisk", True)
+            elif isinstance(body, dict) and body.get("credentialsJson"):
+                raw_str = body["credentialsJson"]
+                creds_dict = json.loads(raw_str) if isinstance(raw_str, str) else raw_str
+                save_to_disk = body.get("saveToDisk", True)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Could not parse request body as credentials JSON: {e}")
+
+    if not creds_dict:
+        raise HTTPException(status_code=400, detail="No credentials provided. Upload a credentials.json file or send raw JSON body.")
+
+    # 3. Validate with Google before applying
+    valid, msg, details = validate_and_test_credentials(creds_dict=creds_dict)
+    if not valid:
+        raise HTTPException(status_code=400, detail=f"Invalid or rejected credentials: {msg}")
+
+    # 4. Hot-reload in memory immediately (no restart needed)
+    set_in_memory_credentials(creds_dict)
+    logger.info(f"Credentials hot-reloaded in memory for: {creds_dict.get('client_email')}")
+
+    # 5. Optionally persist to disk
+    if save_to_disk:
+        try:
+            workspace_root = os.path.dirname(__file__)
+            creds_file_path = os.path.join(workspace_root, "credentials.json")
+            with open(creds_file_path, "w", encoding="utf-8") as f:
+                json.dump(creds_dict, f, indent=2)
+            logger.info(f"Credentials saved to disk: {creds_file_path}")
+        except Exception as e:
+            logger.warning(f"Could not save credentials to disk (still active in memory): {e}")
+
+    return {
+        "success": True,
+        "message": f"Credentials for '{creds_dict.get('client_email')}' are now active. Hot-reloaded without server restart.",
+        "clientEmail": creds_dict.get("client_email"),
+        "projectId": creds_dict.get("project_id"),
+        "privateKeyId": creds_dict.get("private_key_id"),
+        "savedToDisk": save_to_disk,
+        "shareInstruction": f"Ensure your Google Sheet is shared with: {creds_dict.get('client_email')} (Viewer)"
+    }
+
+@app.post("/api/companies/cleanup-fallback")
+async def cleanup_fallback_companies():
+    """
+    Removes actions/decisions/priorities assigned to the fallback 'Google Sheet' company
+    and removes 'Google Sheet' from the companies list.
+    Use this after successfully re-syncing via Service Account to clean up old fallback data.
+    """
+    state = get_state()
+    fallback_name = "Google Sheet"
+
+    before_actions = len(state.get("actions", []))
+    before_decisions = len(state.get("decisions", []))
+    before_priorities = len(state.get("priorities", []))
+
+    state["actions"] = [a for a in state.get("actions", []) if a.get("company", "") != fallback_name]
+    state["decisions"] = [d for d in state.get("decisions", []) if d.get("company", "") != fallback_name]
+    state["priorities"] = [p for p in state.get("priorities", []) if p.get("group", "") != fallback_name]
+
+    companies = state.get("settings", {}).get("companies", [])
+    state["settings"]["companies"] = [c for c in companies if c.get("id") != fallback_name and c.get("name") != fallback_name]
+    company_colors = state.get("settings", {}).get("companyColors", {})
+    company_colors.pop(fallback_name, None)
+    state["settings"]["companyColors"] = company_colors
+
+    save_state(state)
+
+    return {
+        "success": True,
+        "message": f"Removed fallback '{fallback_name}' data.",
+        "removedActions": before_actions - len(state["actions"]),
+        "removedDecisions": before_decisions - len(state["decisions"]),
+        "removedPriorities": before_priorities - len(state["priorities"]),
     }
 
 # ==========================================
