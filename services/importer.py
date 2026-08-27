@@ -27,6 +27,7 @@ from services.data_validator import (
     get_priority_composite_key,
     detect_record_diff,
     parse_date_safely,
+    _simplify,
     PALETTE
 )
 
@@ -281,9 +282,333 @@ def normalize_destination_key(destination: Optional[str]) -> str:
         return "decisions"
     if d in ["priorities", "priority", "okr", "focus"]:
         return "priorities"
-    if d in ["create_new", "new_table", "new_company", "create_new_company"]:
-        return "create_new"
-    return "all"
+class ImportContext:
+    """Manages 1-to-1 matching state for import operations."""
+    def __init__(self, current_state: Dict[str, Any]):
+        self.actions_list = current_state.get('actions', [])
+        self.decisions_list = current_state.get('decisions', [])
+        self.priorities_list = current_state.get('priorities', [])
+
+        self.action_id_map: Dict[str, int] = {}
+        self.action_spec_map: Dict[str, List[int]] = {}
+        self.action_loose_map: Dict[str, List[int]] = {}
+
+        for idx, a in enumerate(self.actions_list):
+            if a.get('id'):
+                self.action_id_map[str(a['id']).lower()] = idx
+            comp = str(a.get('company', '')).strip().lower()
+            item = _simplify(a.get('item', ''))
+            func = _simplify(a.get('function', ''))
+            owner = _simplify(a.get('owner', ''))
+            due = _simplify(a.get('due', ''))
+
+            spec_k = f"{comp}::{func}::{owner}::{item}::{due}"
+            self.action_spec_map.setdefault(spec_k, []).append(idx)
+            loose_k = f"{comp}::{item}"
+            self.action_loose_map.setdefault(loose_k, []).append(idx)
+
+        self.matched_actions: Set[int] = set()
+        self.new_actions: List[Dict[str, Any]] = []
+
+        self.decision_id_map: Dict[str, int] = {}
+        self.decision_spec_map: Dict[str, List[int]] = {}
+        self.decision_loose_map: Dict[str, List[int]] = {}
+
+        for idx, d in enumerate(self.decisions_list):
+            if d.get('id'):
+                self.decision_id_map[str(d['id']).lower()] = idx
+            dec = _simplify(d.get('decision', ''))
+            owner = _simplify(d.get('owner', ''))
+            self.decision_spec_map.setdefault(f"{dec}::{owner}", []).append(idx)
+            self.decision_loose_map.setdefault(dec, []).append(idx)
+
+        self.matched_decisions: Set[int] = set()
+        self.new_decisions: List[Dict[str, Any]] = []
+
+        self.priority_id_map: Dict[str, int] = {}
+        self.priority_spec_map: Dict[str, List[int]] = {}
+        self.priority_loose_map: Dict[str, List[int]] = {}
+
+        for idx, p in enumerate(self.priorities_list):
+            if p.get('id'):
+                self.priority_id_map[str(p['id']).lower()] = idx
+            group = str(p.get('group', '')).strip().lower()
+            focus = _simplify(p.get('focusArea', ''))
+            self.priority_spec_map.setdefault(f"{group}::{focus}", []).append(idx)
+            self.priority_loose_map.setdefault(focus, []).append(idx)
+
+        self.matched_priorities: Set[int] = set()
+        self.new_priorities: List[Dict[str, Any]] = []
+
+def _process_action_record(norm: Dict[str, Any], ctx: ImportContext, mode_key: str, strategy_key: str, metrics: Dict[str, Any], sheet_stat: Dict[str, Any]):
+    """Processes a single normalized action record through 1-to-1 matching and conflict resolution."""
+    if mode_key == "replace":
+        norm["id"] = norm.get("id") or f"a_{uuid.uuid4().hex[:8]}"
+        ctx.new_actions.append(norm)
+        metrics["appended"] += 1
+        metrics["actions"] += 1
+        sheet_stat["appended"] += 1
+        return
+
+    if mode_key == "append":
+        norm["id"] = f"a_{uuid.uuid4().hex[:8]}"
+        ctx.new_actions.append(norm)
+        metrics["appended"] += 1
+        metrics["actions"] += 1
+        sheet_stat["appended"] += 1
+        return
+
+    # Merge & Update Mode: 1-to-1 matching against existing records only
+    matched_idx = None
+    if norm.get('id') and str(norm['id']).lower() in ctx.action_id_map:
+        cand = ctx.action_id_map[str(norm['id']).lower()]
+        if cand not in ctx.matched_actions:
+            matched_idx = cand
+
+    comp = str(norm.get('company', '')).strip().lower()
+    item = _simplify(norm.get('item', ''))
+    func = _simplify(norm.get('function', ''))
+    owner = _simplify(norm.get('owner', ''))
+    due = _simplify(norm.get('due', ''))
+
+    if matched_idx is None:
+        spec_k = f"{comp}::{func}::{owner}::{item}::{due}"
+        for cand in ctx.action_spec_map.get(spec_k, []):
+            if cand not in ctx.matched_actions:
+                matched_idx = cand
+                break
+
+    if matched_idx is None:
+        loose_k = f"{comp}::{item}"
+        for cand in ctx.action_loose_map.get(loose_k, []):
+            if cand not in ctx.matched_actions:
+                matched_idx = cand
+                break
+
+    if matched_idx is not None:
+        ctx.matched_actions.add(matched_idx)
+        existing_act = ctx.actions_list[matched_idx]
+        diffs = detect_record_diff(existing_act, norm, ["function", "status", "owner", "founderDependency", "due", "comments"])
+
+        if not diffs:
+            metrics["merged"] += 1
+            metrics["actions"] += 1
+            return
+
+        if strategy_key == "manual_review":
+            metrics["flagged"] += 1
+            metrics["actions"] += 1
+            sheet_stat["flagged"] += 1
+            metrics["conflicts"].append({
+                "type": "action",
+                "id": existing_act["id"],
+                "existing": existing_act,
+                "incoming": norm,
+                "diffs": {k: {"existing": v[0], "incoming": v[1]} for k, v in diffs.items()}
+            })
+            return
+
+        # Field-level update
+        metrics["updated"] += 1
+        metrics["actions"] += 1
+        sheet_stat["updated"] += 1
+
+        if strategy_key == "existing_wins":
+            for k, (e_val, i_val) in diffs.items():
+                if not e_val and i_val:
+                    existing_act[k] = i_val
+        elif strategy_key == "timestamp_wins":
+            e_date = parse_date_safely(existing_act.get('due'))
+            i_date = parse_date_safely(norm.get('due'))
+            if i_date and (not e_date or i_date >= e_date):
+                for k, (_, i_val) in diffs.items():
+                    if i_val:
+                        existing_act[k] = i_val
+        else:  # incoming_wins (default)
+            for k, (_, i_val) in diffs.items():
+                if i_val:
+                    existing_act[k] = i_val
+    else:
+        norm["id"] = norm.get("id") or f"a_{uuid.uuid4().hex[:8]}"
+        ctx.new_actions.append(norm)
+        metrics["appended"] += 1
+        metrics["actions"] += 1
+        sheet_stat["appended"] += 1
+
+def _process_decision_record(norm: Dict[str, Any], ctx: ImportContext, mode_key: str, strategy_key: str, metrics: Dict[str, Any], sheet_stat: Dict[str, Any]):
+    """Processes a single normalized decision record through 1-to-1 matching and conflict resolution."""
+    if mode_key == "replace":
+        norm["id"] = norm.get("id") or f"d_{uuid.uuid4().hex[:8]}"
+        ctx.new_decisions.append(norm)
+        metrics["appended"] += 1
+        metrics["decisions"] += 1
+        sheet_stat["appended"] += 1
+        return
+
+    if mode_key == "append":
+        norm["id"] = f"d_{uuid.uuid4().hex[:8]}"
+        ctx.new_decisions.append(norm)
+        metrics["appended"] += 1
+        metrics["decisions"] += 1
+        sheet_stat["appended"] += 1
+        return
+
+    matched_idx = None
+    if norm.get('id') and str(norm['id']).lower() in ctx.decision_id_map:
+        cand = ctx.decision_id_map[str(norm['id']).lower()]
+        if cand not in ctx.matched_decisions:
+            matched_idx = cand
+
+    dec = _simplify(norm.get('decision', ''))
+    owner = _simplify(norm.get('owner', ''))
+
+    if matched_idx is None:
+        spec_k = f"{dec}::{owner}"
+        for cand in ctx.decision_spec_map.get(spec_k, []):
+            if cand not in ctx.matched_decisions:
+                matched_idx = cand
+                break
+
+    if matched_idx is None:
+        for cand in ctx.decision_loose_map.get(dec, []):
+            if cand not in ctx.matched_decisions:
+                matched_idx = cand
+                break
+
+    if matched_idx is not None:
+        ctx.matched_decisions.add(matched_idx)
+        existing_dec = ctx.decisions_list[matched_idx]
+        diffs = detect_record_diff(existing_dec, norm, ["owner", "status", "founderDependency", "impact", "deadline", "nextReview"])
+
+        if not diffs:
+            metrics["merged"] += 1
+            metrics["decisions"] += 1
+            return
+
+        if strategy_key == "manual_review":
+            metrics["flagged"] += 1
+            metrics["decisions"] += 1
+            sheet_stat["flagged"] += 1
+            metrics["conflicts"].append({
+                "type": "decision",
+                "id": existing_dec["id"],
+                "existing": existing_dec,
+                "incoming": norm,
+                "diffs": {k: {"existing": v[0], "incoming": v[1]} for k, v in diffs.items()}
+            })
+            return
+
+        metrics["updated"] += 1
+        metrics["decisions"] += 1
+        sheet_stat["updated"] += 1
+
+        if strategy_key == "existing_wins":
+            for k, (e_val, i_val) in diffs.items():
+                if not e_val and i_val:
+                    existing_dec[k] = i_val
+        elif strategy_key == "timestamp_wins":
+            e_date = parse_date_safely(existing_dec.get('deadline') or existing_dec.get('nextReview'))
+            i_date = parse_date_safely(norm.get('deadline') or norm.get('nextReview'))
+            if i_date and (not e_date or i_date >= e_date):
+                for k, (_, i_val) in diffs.items():
+                    if i_val:
+                        existing_dec[k] = i_val
+        else:  # incoming_wins
+            for k, (_, i_val) in diffs.items():
+                if i_val:
+                    existing_dec[k] = i_val
+    else:
+        norm["id"] = norm.get("id") or f"d_{uuid.uuid4().hex[:8]}"
+        ctx.new_decisions.append(norm)
+        metrics["appended"] += 1
+        metrics["decisions"] += 1
+        sheet_stat["appended"] += 1
+
+def _process_priority_record(norm: Dict[str, Any], ctx: ImportContext, mode_key: str, strategy_key: str, metrics: Dict[str, Any], sheet_stat: Dict[str, Any]):
+    """Processes a single normalized priority record through 1-to-1 matching and conflict resolution."""
+    if mode_key == "replace":
+        norm["id"] = norm.get("id") or f"p_{uuid.uuid4().hex[:8]}"
+        ctx.new_priorities.append(norm)
+        metrics["appended"] += 1
+        metrics["priorities"] += 1
+        sheet_stat["appended"] += 1
+        return
+
+    if mode_key == "append":
+        norm["id"] = f"p_{uuid.uuid4().hex[:8]}"
+        ctx.new_priorities.append(norm)
+        metrics["appended"] += 1
+        metrics["priorities"] += 1
+        sheet_stat["appended"] += 1
+        return
+
+    matched_idx = None
+    if norm.get('id') and str(norm['id']).lower() in ctx.priority_id_map:
+        cand = ctx.priority_id_map[str(norm['id']).lower()]
+        if cand not in ctx.matched_priorities:
+            matched_idx = cand
+
+    group = str(norm.get('group', '')).strip().lower()
+    focus = _simplify(norm.get('focusArea', ''))
+
+    if matched_idx is None:
+        spec_k = f"{group}::{focus}"
+        for cand in ctx.priority_spec_map.get(spec_k, []):
+            if cand not in ctx.matched_priorities:
+                matched_idx = cand
+                break
+
+    if matched_idx is None:
+        for cand in ctx.priority_loose_map.get(focus, []):
+            if cand not in ctx.matched_priorities:
+                matched_idx = cand
+                break
+
+    if matched_idx is not None:
+        ctx.matched_priorities.add(matched_idx)
+        existing_prio = ctx.priorities_list[matched_idx]
+        diffs = detect_record_diff(existing_prio, norm, ["group", "priority", "why", "horizon"])
+
+        if not diffs:
+            metrics["merged"] += 1
+            metrics["priorities"] += 1
+            return
+
+        if strategy_key == "manual_review":
+            metrics["flagged"] += 1
+            metrics["priorities"] += 1
+            sheet_stat["flagged"] += 1
+            metrics["conflicts"].append({
+                "type": "priority",
+                "id": existing_prio["id"],
+                "existing": existing_prio,
+                "incoming": norm,
+                "diffs": {k: {"existing": v[0], "incoming": v[1]} for k, v in diffs.items()}
+            })
+            return
+
+        metrics["updated"] += 1
+        metrics["priorities"] += 1
+        sheet_stat["updated"] += 1
+
+        if strategy_key == "existing_wins":
+            for k, (e_val, i_val) in diffs.items():
+                if not e_val and i_val:
+                    existing_prio[k] = i_val
+        elif strategy_key == "timestamp_wins":
+            for k, (_, i_val) in diffs.items():
+                if i_val:
+                    existing_prio[k] = i_val
+        else:  # incoming_wins
+            for k, (_, i_val) in diffs.items():
+                if i_val:
+                    existing_prio[k] = i_val
+    else:
+        norm["id"] = norm.get("id") or f"p_{uuid.uuid4().hex[:8]}"
+        ctx.new_priorities.append(norm)
+        metrics["appended"] += 1
+        metrics["priorities"] += 1
+        sheet_stat["appended"] += 1
 
 def process_dataset_import(
     sheets_data: Dict[str, List[Dict[str, Any]]],
@@ -358,34 +683,7 @@ def process_dataset_import(
             color_idx = len(companies) % len(PALETTE)
             company_colors[target_company] = PALETTE[color_idx]
 
-    # Pre-build lookup maps for composite key matching
-    # Actions: Key -> index in current_state['actions']
-    action_map = {}
-    for idx, a in enumerate(current_state.get('actions', [])):
-        ck = get_action_composite_key(a)
-        action_map[ck] = idx
-        if 'id' in a and a['id']:
-            action_map[f"id::{str(a['id']).lower()}"] = idx
-
-    # Decisions: Key -> index in current_state['decisions']
-    decision_map = {}
-    for idx, d in enumerate(current_state.get('decisions', [])):
-        ck = get_decision_composite_key(d)
-        decision_map[ck] = idx
-        if 'id' in d and d['id']:
-            decision_map[f"id::{str(d['id']).lower()}"] = idx
-
-    # Priorities: Key -> index in current_state['priorities']
-    priority_map = {}
-    for idx, p in enumerate(current_state.get('priorities', [])):
-        ck = get_priority_composite_key(p)
-        priority_map[ck] = idx
-        if 'id' in p and p['id']:
-            priority_map[f"id::{str(p['id']).lower()}"] = idx
-
-    new_actions = []
-    new_decisions = []
-    new_priorities = []
+    ctx = ImportContext(current_state)
 
     for sheet_name, rows in sheets_data.items():
         if not rows:
@@ -419,7 +717,7 @@ def process_dataset_import(
                     continue
 
                 norm['company'] = target_company
-                _process_action_record(norm, current_state, action_map, new_actions, mode_key, strategy_key, metrics, sheet_stat)
+                _process_action_record(norm, ctx, mode_key, strategy_key, metrics, sheet_stat)
 
         elif dest_key == "register":
             default_comp = "General"
@@ -444,7 +742,7 @@ def process_dataset_import(
                     metrics["exclusion_reasons"][r_key] = metrics["exclusion_reasons"].get(r_key, 0) + 1
                     continue
 
-                _process_action_record(norm, current_state, action_map, new_actions, mode_key, strategy_key, metrics, sheet_stat)
+                _process_action_record(norm, ctx, mode_key, strategy_key, metrics, sheet_stat)
 
         elif dest_key == "decisions":
             for r in rows:
@@ -466,7 +764,7 @@ def process_dataset_import(
                     metrics["exclusion_reasons"][r_key] = metrics["exclusion_reasons"].get(r_key, 0) + 1
                     continue
 
-                _process_decision_record(norm, current_state, decision_map, new_decisions, mode_key, strategy_key, metrics, sheet_stat)
+                _process_decision_record(norm, ctx, mode_key, strategy_key, metrics, sheet_stat)
 
         elif dest_key == "priorities":
             for r in rows:
@@ -488,7 +786,7 @@ def process_dataset_import(
                     metrics["exclusion_reasons"][r_key] = metrics["exclusion_reasons"].get(r_key, 0) + 1
                     continue
 
-                _process_priority_record(norm, current_state, priority_map, new_priorities, mode_key, strategy_key, metrics, sheet_stat)
+                _process_priority_record(norm, ctx, mode_key, strategy_key, metrics, sheet_stat)
 
         else:
             # dest_key == 'all': Smart auto-detection with fallback cascade
@@ -506,7 +804,7 @@ def process_dataset_import(
                                 metrics["skipped"] += 1
                                 sheet_stat["skipped"] += 1
                                 continue
-                            _process_action_record(norm_act, current_state, action_map, new_actions, mode_key, strategy_key, metrics, sheet_stat)
+                            _process_action_record(norm_act, ctx, mode_key, strategy_key, metrics, sheet_stat)
                         else:
                             metrics["skipped"] += 1
                             sheet_stat["skipped"] += 1
@@ -521,7 +819,7 @@ def process_dataset_import(
                         metrics["exclusion_reasons"][r_key] = metrics["exclusion_reasons"].get(r_key, 0) + 1
                         continue
 
-                    _process_decision_record(norm, current_state, decision_map, new_decisions, mode_key, strategy_key, metrics, sheet_stat)
+                    _process_decision_record(norm, ctx, mode_key, strategy_key, metrics, sheet_stat)
 
             elif detected_type == 'priorities':
                 for r in rows:
@@ -534,7 +832,7 @@ def process_dataset_import(
                                 metrics["skipped"] += 1
                                 sheet_stat["skipped"] += 1
                                 continue
-                            _process_action_record(norm_act, current_state, action_map, new_actions, mode_key, strategy_key, metrics, sheet_stat)
+                            _process_action_record(norm_act, ctx, mode_key, strategy_key, metrics, sheet_stat)
                         else:
                             metrics["skipped"] += 1
                             sheet_stat["skipped"] += 1
@@ -549,7 +847,7 @@ def process_dataset_import(
                         metrics["exclusion_reasons"][r_key] = metrics["exclusion_reasons"].get(r_key, 0) + 1
                         continue
 
-                    _process_priority_record(norm, current_state, priority_map, new_priorities, mode_key, strategy_key, metrics, sheet_stat)
+                    _process_priority_record(norm, ctx, mode_key, strategy_key, metrics, sheet_stat)
 
             else:
                 # Default: Actions or company-specific sheet
@@ -562,11 +860,11 @@ def process_dataset_import(
                         # Fallback try decision then priority
                         norm_dec = normalize_decision_item(r)
                         if norm_dec:
-                            _process_decision_record(norm_dec, current_state, decision_map, new_decisions, mode_key, strategy_key, metrics, sheet_stat)
+                            _process_decision_record(norm_dec, ctx, mode_key, strategy_key, metrics, sheet_stat)
                             continue
                         norm_prio = normalize_priority_item(r)
                         if norm_prio:
-                            _process_priority_record(norm_prio, current_state, priority_map, new_priorities, mode_key, strategy_key, metrics, sheet_stat)
+                            _process_priority_record(norm_prio, ctx, mode_key, strategy_key, metrics, sheet_stat)
                             continue
                         metrics["skipped"] += 1
                         sheet_stat["skipped"] += 1
@@ -581,39 +879,36 @@ def process_dataset_import(
                         metrics["exclusion_reasons"][r_key] = metrics["exclusion_reasons"].get(r_key, 0) + 1
                         continue
 
-                    _process_action_record(norm, current_state, action_map, new_actions, mode_key, strategy_key, metrics, sheet_stat)
+                    _process_action_record(norm, ctx, mode_key, strategy_key, metrics, sheet_stat)
 
         metrics["sheet_breakdown"][sheet_name] = sheet_stat
 
     # Apply results based on mode
     if mode_key == "replace":
         if dest_key == "register":
-            current_state["actions"] = new_actions
+            current_state["actions"] = ctx.new_actions
         elif dest_key == "decisions":
-            current_state["decisions"] = new_decisions
+            current_state["decisions"] = ctx.new_decisions
         elif dest_key == "priorities":
-            current_state["priorities"] = new_priorities
+            current_state["priorities"] = ctx.new_priorities
         elif dest_key == "create_new":
-            # In replace mode with create_new, replace items only for this company
             filtered_actions = [a for a in current_state.get("actions", []) if a.get("company") != target_company]
-            filtered_actions.extend(new_actions)
+            filtered_actions.extend(ctx.new_actions)
             current_state["actions"] = filtered_actions
         else:
-            # dest_key == 'all': replace whatever collections had rows imported
-            if new_actions:
-                current_state["actions"] = new_actions
-            if new_decisions:
-                current_state["decisions"] = new_decisions
-            if new_priorities:
-                current_state["priorities"] = new_priorities
+            if ctx.new_actions:
+                current_state["actions"] = ctx.new_actions
+            if ctx.new_decisions:
+                current_state["decisions"] = ctx.new_decisions
+            if ctx.new_priorities:
+                current_state["priorities"] = ctx.new_priorities
     else:
-        # In merge / append mode: new_actions, new_decisions, new_priorities were already integrated or queued
-        if new_actions:
-            current_state["actions"] = current_state.get("actions", []) + new_actions
-        if new_decisions:
-            current_state["decisions"] = current_state.get("decisions", []) + new_decisions
-        if new_priorities:
-            current_state["priorities"] = current_state.get("priorities", []) + new_priorities
+        if ctx.new_actions:
+            current_state["actions"] = current_state.get("actions", []) + ctx.new_actions
+        if ctx.new_decisions:
+            current_state["decisions"] = current_state.get("decisions", []) + ctx.new_decisions
+        if ctx.new_priorities:
+            current_state["priorities"] = current_state.get("priorities", []) + ctx.new_priorities
 
     # Ensure companies and statuses are up to date
     current_state = sync_companies_and_statuses(current_state)
@@ -624,279 +919,10 @@ def process_dataset_import(
 
     return current_state, metrics
 
-def _process_action_record(norm, current_state, action_map, new_actions, mode_key, strategy_key, metrics, sheet_stat):
-    """Processes a single normalized action record through composite key matching and conflict resolution."""
-    if mode_key == "replace":
-        norm["id"] = norm.get("id") or f"a_{uuid.uuid4().hex[:8]}"
-        new_actions.append(norm)
-        metrics["appended"] += 1
-        metrics["actions"] += 1
-        sheet_stat["appended"] += 1
-        return
-
-    if mode_key == "append":
-        norm["id"] = f"a_{uuid.uuid4().hex[:8]}"
-        new_actions.append(norm)
-        metrics["appended"] += 1
-        metrics["actions"] += 1
-        sheet_stat["appended"] += 1
-        return
-
-    # Merge & Update Mode: Check composite key and ID match
-    comp_key = get_action_composite_key(norm)
-    id_key = f"id::{str(norm.get('id', '')).lower()}" if norm.get('id') else None
-
-    existing_idx = None
-    if id_key and id_key in action_map:
-        existing_idx = action_map[id_key]
-    elif comp_key in action_map:
-        existing_idx = action_map[comp_key]
-
-    if existing_idx is not None:
-        actions_list = current_state.get("actions", [])
-        if existing_idx < len(actions_list):
-            existing_act = actions_list[existing_idx]
-        else:
-            new_idx = existing_idx - len(actions_list)
-            existing_act = new_actions[new_idx] if new_idx < len(new_actions) else None
-        if existing_act is None:
-            norm["id"] = norm.get("id") or f"a_{uuid.uuid4().hex[:8]}"
-            new_actions.append(norm)
-            action_map[comp_key] = len(actions_list) + len(new_actions) - 1
-            metrics["appended"] += 1
-            metrics["actions"] += 1
-            sheet_stat["appended"] += 1
-            return
-        diffs = detect_record_diff(existing_act, norm, ["function", "status", "owner", "founderDependency", "due", "comments"])
-        
-        if not diffs:
-            metrics["merged"] += 1
-            metrics["actions"] += 1
-            return
-
-        if strategy_key == "manual_review":
-            metrics["flagged"] += 1
-            metrics["actions"] += 1
-            sheet_stat["flagged"] += 1
-            metrics["conflicts"].append({
-                "type": "action",
-                "id": existing_act["id"],
-                "existing": existing_act,
-                "incoming": norm,
-                "diffs": {k: {"existing": v[0], "incoming": v[1]} for k, v in diffs.items()}
-            })
-            return
-
-        # Field-level update
-        metrics["updated"] += 1
-        metrics["actions"] += 1
-        sheet_stat["updated"] += 1
-
-        if strategy_key == "existing_wins":
-            # Only update fields that are currently empty in existing
-            for k, (e_val, i_val) in diffs.items():
-                if not e_val and i_val:
-                    existing_act[k] = i_val
-        elif strategy_key == "timestamp_wins":
-            # Compare due / updated dates
-            e_date = parse_date_safely(existing_act.get('due'))
-            i_date = parse_date_safely(norm.get('due'))
-            if i_date and (not e_date or i_date >= e_date):
-                for k, (_, i_val) in diffs.items():
-                    if i_val:
-                        existing_act[k] = i_val
-        else:  # incoming_wins (default)
-            for k, (_, i_val) in diffs.items():
-                if i_val:
-                    existing_act[k] = i_val
-    else:
-        norm["id"] = norm.get("id") or f"a_{uuid.uuid4().hex[:8]}"
-        new_actions.append(norm)
-        action_map[comp_key] = len(current_state.get("actions", [])) + len(new_actions) - 1
-        metrics["appended"] += 1
-        metrics["actions"] += 1
-        sheet_stat["appended"] += 1
-
-def _process_decision_record(norm, current_state, decision_map, new_decisions, mode_key, strategy_key, metrics, sheet_stat):
-    """Processes a single normalized decision record through composite key matching and conflict resolution."""
-    if mode_key == "replace":
-        norm["id"] = norm.get("id") or f"d_{uuid.uuid4().hex[:8]}"
-        new_decisions.append(norm)
-        metrics["appended"] += 1
-        metrics["decisions"] += 1
-        sheet_stat["appended"] += 1
-        return
-
-    if mode_key == "append":
-        norm["id"] = f"d_{uuid.uuid4().hex[:8]}"
-        new_decisions.append(norm)
-        metrics["appended"] += 1
-        metrics["decisions"] += 1
-        sheet_stat["appended"] += 1
-        return
-
-    comp_key = get_decision_composite_key(norm)
-    id_key = f"id::{str(norm.get('id', '')).lower()}" if norm.get('id') else None
-
-    existing_idx = None
-    if id_key and id_key in decision_map:
-        existing_idx = decision_map[id_key]
-    elif comp_key in decision_map:
-        existing_idx = decision_map[comp_key]
-
-    if existing_idx is not None:
-        decisions_list = current_state.get("decisions", [])
-        if existing_idx < len(decisions_list):
-            existing_dec = decisions_list[existing_idx]
-        else:
-            new_idx = existing_idx - len(decisions_list)
-            existing_dec = new_decisions[new_idx] if new_idx < len(new_decisions) else None
-        if existing_dec is None:
-            norm["id"] = norm.get("id") or f"d_{uuid.uuid4().hex[:8]}"
-            new_decisions.append(norm)
-            decision_map[comp_key] = len(decisions_list) + len(new_decisions) - 1
-            metrics["appended"] += 1
-            metrics["decisions"] += 1
-            sheet_stat["appended"] += 1
-            return
-        diffs = detect_record_diff(existing_dec, norm, ["owner", "status", "founderDependency", "impact", "deadline", "nextReview"])
-        
-        if not diffs:
-            metrics["merged"] += 1
-            metrics["decisions"] += 1
-            return
-
-        if strategy_key == "manual_review":
-            metrics["flagged"] += 1
-            metrics["decisions"] += 1
-            sheet_stat["flagged"] += 1
-            metrics["conflicts"].append({
-                "type": "decision",
-                "id": existing_dec["id"],
-                "existing": existing_dec,
-                "incoming": norm,
-                "diffs": {k: {"existing": v[0], "incoming": v[1]} for k, v in diffs.items()}
-            })
-            return
-
-        metrics["updated"] += 1
-        metrics["decisions"] += 1
-        sheet_stat["updated"] += 1
-
-        if strategy_key == "existing_wins":
-            for k, (e_val, i_val) in diffs.items():
-                if not e_val and i_val:
-                    existing_dec[k] = i_val
-        elif strategy_key == "timestamp_wins":
-            e_date = parse_date_safely(existing_dec.get('deadline') or existing_dec.get('nextReview'))
-            i_date = parse_date_safely(norm.get('deadline') or norm.get('nextReview'))
-            if i_date and (not e_date or i_date >= e_date):
-                for k, (_, i_val) in diffs.items():
-                    if i_val:
-                        existing_dec[k] = i_val
-        else:  # incoming_wins
-            for k, (_, i_val) in diffs.items():
-                if i_val:
-                    existing_dec[k] = i_val
-    else:
-        norm["id"] = norm.get("id") or f"d_{uuid.uuid4().hex[:8]}"
-        new_decisions.append(norm)
-        decision_map[comp_key] = len(current_state.get("decisions", [])) + len(new_decisions) - 1
-        metrics["appended"] += 1
-        metrics["decisions"] += 1
-        sheet_stat["appended"] += 1
-
-def _process_priority_record(norm, current_state, priority_map, new_priorities, mode_key, strategy_key, metrics, sheet_stat):
-    """Processes a single normalized priority record through composite key matching and conflict resolution."""
-    if mode_key == "replace":
-        norm["id"] = norm.get("id") or f"p_{uuid.uuid4().hex[:8]}"
-        new_priorities.append(norm)
-        metrics["appended"] += 1
-        metrics["priorities"] += 1
-        sheet_stat["appended"] += 1
-        return
-
-    if mode_key == "append":
-        norm["id"] = f"p_{uuid.uuid4().hex[:8]}"
-        new_priorities.append(norm)
-        metrics["appended"] += 1
-        metrics["priorities"] += 1
-        sheet_stat["appended"] += 1
-        return
-
-    comp_key = get_priority_composite_key(norm)
-    id_key = f"id::{str(norm.get('id', '')).lower()}" if norm.get('id') else None
-
-    existing_idx = None
-    if id_key and id_key in priority_map:
-        existing_idx = priority_map[id_key]
-    elif comp_key in priority_map:
-        existing_idx = priority_map[comp_key]
-
-    if existing_idx is not None:
-        priorities_list = current_state.get("priorities", [])
-        if existing_idx < len(priorities_list):
-            existing_prio = priorities_list[existing_idx]
-        else:
-            new_idx = existing_idx - len(priorities_list)
-            existing_prio = new_priorities[new_idx] if new_idx < len(new_priorities) else None
-        if existing_prio is None:
-            norm["id"] = norm.get("id") or f"p_{uuid.uuid4().hex[:8]}"
-            new_priorities.append(norm)
-            priority_map[comp_key] = len(priorities_list) + len(new_priorities) - 1
-            metrics["appended"] += 1
-            metrics["priorities"] += 1
-            sheet_stat["appended"] += 1
-            return
-        diffs = detect_record_diff(existing_prio, norm, ["priority", "why", "horizon"])
-        
-        if not diffs:
-            metrics["merged"] += 1
-            metrics["priorities"] += 1
-            return
-
-        if strategy_key == "manual_review":
-            metrics["flagged"] += 1
-            metrics["priorities"] += 1
-            sheet_stat["flagged"] += 1
-            metrics["conflicts"].append({
-                "type": "priority",
-                "id": existing_prio["id"],
-                "existing": existing_prio,
-                "incoming": norm,
-                "diffs": {k: {"existing": v[0], "incoming": v[1]} for k, v in diffs.items()}
-            })
-            return
-
-        metrics["updated"] += 1
-        metrics["priorities"] += 1
-        sheet_stat["updated"] += 1
-
-        if strategy_key == "existing_wins":
-            for k, (e_val, i_val) in diffs.items():
-                if not e_val and i_val:
-                    existing_prio[k] = i_val
-        elif strategy_key == "timestamp_wins":
-            for k, (_, i_val) in diffs.items():
-                if i_val:
-                    existing_prio[k] = i_val
-        else:  # incoming_wins
-            for k, (_, i_val) in diffs.items():
-                if i_val:
-                    existing_prio[k] = i_val
-    else:
-        norm["id"] = norm.get("id") or f"p_{uuid.uuid4().hex[:8]}"
-        new_priorities.append(norm)
-        priority_map[comp_key] = len(current_state.get("priorities", [])) + len(new_priorities) - 1
-        metrics["appended"] += 1
-        metrics["priorities"] += 1
-        sheet_stat["appended"] += 1
-
 def export_state_to_excel(state: Dict[str, Any]) -> io.BytesIO:
     """Exports the entire dashboard state to a multi-tab Excel workbook."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # Actions Sheet
         actions = state.get('actions', [])
         if actions:
             df_actions = pd.DataFrame(actions)
@@ -904,7 +930,6 @@ def export_state_to_excel(state: Dict[str, Any]) -> io.BytesIO:
         else:
             pd.DataFrame([{"Item": "", "Company": "", "Function": "", "Status": "", "Owner": "", "Founder Dependency": "", "Comments": ""}]).to_excel(writer, sheet_name='Actions', index=False)
 
-        # Decisions Sheet
         decisions = state.get('decisions', [])
         if decisions:
             df_decisions = pd.DataFrame(decisions)
@@ -912,7 +937,6 @@ def export_state_to_excel(state: Dict[str, Any]) -> io.BytesIO:
         else:
             pd.DataFrame([{"Decision": "", "Owner": "", "Status": "", "Founder Dependency": "", "Impact": "", "Deadline": ""}]).to_excel(writer, sheet_name='Decisions', index=False)
 
-        # Priorities Sheet
         priorities = state.get('priorities', [])
         if priorities:
             df_priorities = pd.DataFrame(priorities)
@@ -920,7 +944,6 @@ def export_state_to_excel(state: Dict[str, Any]) -> io.BytesIO:
         else:
             pd.DataFrame([{"Priority": "", "Group": "", "Focus Area": "", "Why": "", "Horizon": ""}]).to_excel(writer, sheet_name='Priorities', index=False)
 
-        # Company Summary Sheet
         companies = state.get('settings', {}).get('companies', [])
         if companies:
             df_companies = pd.DataFrame(companies)
@@ -933,15 +956,12 @@ def export_state_to_csv_zip(state: Dict[str, Any]) -> io.BytesIO:
     """Exports state as a ZIP archive containing individual CSVs."""
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # actions.csv
         df_actions = pd.DataFrame(state.get('actions', []))
         zf.writestr('actions.csv', df_actions.to_csv(index=False))
 
-        # decisions.csv
         df_decisions = pd.DataFrame(state.get('decisions', []))
         zf.writestr('decisions.csv', df_decisions.to_csv(index=False))
 
-        # priorities.csv
         df_priorities = pd.DataFrame(state.get('priorities', []))
         zf.writestr('priorities.csv', df_priorities.to_csv(index=False))
 
