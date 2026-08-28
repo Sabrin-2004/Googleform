@@ -1,161 +1,285 @@
 """
-Authentication Service for Portfolio Command Center
-Provides secure password hashing (SHA-256 with salt), token-based session management,
-and credential verification.
+Authentication Service — Supabase Edition
+Handles:
+  - Email/password login via Supabase Auth
+  - JWT session token verification
+  - Admin-only user management (create / list / delete)
+  - Role assignment via Supabase user_metadata
 """
 import os
-import json
-import uuid
-import hashlib
-import secrets
-import datetime
-from typing import Dict, Any, Optional
+import logging
+from typing import Optional, Dict, Any, List
 
-from services.storage import DATA_DIR
+from dotenv import load_dotenv
+load_dotenv()
 
-AUTH_FILE = os.path.join(DATA_DIR, "auth_config.json")
-SESSIONS_FILE = os.path.join(DATA_DIR, "active_sessions.json")
+logger = logging.getLogger(__name__)
 
-# Default admin credentials if not set
-DEFAULT_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-DEFAULT_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
-def _hash_password(password: str, salt: Optional[str] = None) -> tuple[str, str]:
-    """Generates a secure salted SHA-256 hash."""
-    if not salt:
-        salt = secrets.token_hex(16)
-    hash_obj = hashlib.sha256((salt + password).encode("utf-8"))
-    return hash_obj.hexdigest(), salt
+_supabase_client = None
+_supabase_admin_client = None
 
-def _init_auth():
-    """Initializes auth credentials file if not present."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(AUTH_FILE):
-        pwd_hash, salt = _hash_password(DEFAULT_PASSWORD)
-        config = {
-            "username": DEFAULT_USERNAME,
-            "name": "Executive Director",
-            "role": "Administrator",
-            "password_hash": pwd_hash,
-            "salt": salt,
-            "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-        }
-        with open(AUTH_FILE, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
 
-def _get_auth_config() -> Dict[str, Any]:
-    """Returns the current auth configuration."""
-    _init_auth()
-    try:
-        with open(AUTH_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        _init_auth()
-        with open(AUTH_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+def _get_supabase():
+    """Returns a cached Supabase client (anon/user-level)."""
+    global _supabase_client
+    if _supabase_client is None:
+        if not SUPABASE_URL or "your-project-id" in SUPABASE_URL:
+            raise RuntimeError(
+                "SUPABASE_URL is not configured. "
+                "Add it to your .env file: SUPABASE_URL=https://xxxxx.supabase.co"
+            )
+        if not SUPABASE_SERVICE_ROLE_KEY or "your-service-role" in SUPABASE_SERVICE_ROLE_KEY:
+            raise RuntimeError(
+                "SUPABASE_SERVICE_ROLE_KEY is not configured. "
+                "Add it to your .env file."
+            )
+        try:
+            from supabase import create_client, Client
+            _supabase_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        except ImportError:
+            raise RuntimeError(
+                "supabase package not installed. Run: pip install supabase"
+            )
+    return _supabase_client
 
-def _get_sessions() -> Dict[str, Any]:
-    """Returns active session tokens."""
-    if not os.path.exists(SESSIONS_FILE):
-        return {}
-    try:
-        with open(SESSIONS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
 
-def _save_sessions(sessions: Dict[str, Any]):
-    """Saves active session tokens."""
-    try:
-        with open(SESSIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(sessions, f, indent=2)
-    except Exception:
-        pass
+def _get_admin_client():
+    """Returns a Supabase Admin client using the service role key."""
+    global _supabase_admin_client
+    if _supabase_admin_client is None:
+        if not SUPABASE_URL or "your-project-id" in SUPABASE_URL:
+            raise RuntimeError("SUPABASE_URL is not configured in .env")
+        if not SUPABASE_SERVICE_ROLE_KEY or "your-service-role" in SUPABASE_SERVICE_ROLE_KEY:
+            raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY is not configured in .env")
+        try:
+            from supabase import create_client
+            _supabase_admin_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        except ImportError:
+            raise RuntimeError("supabase package not installed. Run: pip install supabase")
+    return _supabase_admin_client
 
-def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
+
+# ────────────────────────────────────────────────────────────────────
+# Login / Session
+# ────────────────────────────────────────────────────────────────────
+
+def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     """
-    Validates username and password.
-    Returns user profile with session token if valid, else None.
+    Authenticates a user with email + password via Supabase.
+    Returns a dict with { token, email, name, role } on success, else None.
     """
-    config = _get_auth_config()
-    target_user = config.get("username", "admin")
-    if username.strip().lower() != target_user.lower():
-        return None
+    try:
+        client = _get_supabase()
+        response = client.auth.sign_in_with_password({
+            "email": email.strip().lower(),
+            "password": password
+        })
 
-    salt = config.get("salt", "")
-    expected_hash = config.get("password_hash", "")
-    test_hash, _ = _hash_password(password, salt)
+        if not response or not response.session:
+            logger.warning(f"Auth failed for {email}: no session returned")
+            return None
 
-    if secrets.compare_digest(test_hash, expected_hash):
-        # Create session token
-        token = "gcc_" + uuid.uuid4().hex
-        sessions = _get_sessions()
-        sessions[token] = {
-            "username": config.get("username", "admin"),
-            "name": config.get("name", "Executive Director"),
-            "role": config.get("role", "Administrator"),
-            "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-        }
-        _save_sessions(sessions)
+        user = response.user
+        session = response.session
+
+        # Extract role from user_metadata (set when admin creates user)
+        metadata = user.user_metadata or {}
+        role = metadata.get("role", "viewer")
+        name = metadata.get("name", email.split("@")[0].title())
 
         return {
-            "token": token,
-            "username": config.get("username", "admin"),
-            "name": config.get("name", "Executive Director"),
-            "role": config.get("role", "Administrator")
+            "token": session.access_token,
+            "refresh_token": session.refresh_token,
+            "email": user.email,
+            "name": name,
+            "role": role,
+            "user_id": str(user.id)
         }
-    return None
+
+    except RuntimeError as e:
+        logger.error(f"Supabase config error: {e}")
+        raise
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "invalid login" in error_msg or "invalid credentials" in error_msg or "email not confirmed" in error_msg:
+            logger.info(f"Invalid credentials for {email}")
+            return None
+        logger.error(f"Authentication error for {email}: {e}", exc_info=True)
+        return None
+
 
 def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
-    """Validates an existing session token."""
+    """
+    Verifies a Supabase JWT access token.
+    Returns user profile dict on success, None if invalid/expired.
+    """
     if not token:
         return None
-    sessions = _get_sessions()
-    session = sessions.get(token)
-    if session:
+    try:
+        client = _get_supabase()
+        response = client.auth.get_user(token)
+
+        if not response or not response.user:
+            return None
+
+        user = response.user
+        metadata = user.user_metadata or {}
+        role = metadata.get("role", "viewer")
+        name = metadata.get("name", (user.email or "").split("@")[0].title())
+
         return {
-            "username": session.get("username"),
-            "name": session.get("name"),
-            "role": session.get("role")
+            "email": user.email,
+            "name": name,
+            "role": role,
+            "user_id": str(user.id)
         }
-    if token == "gcc_admin_session":
-        config = _get_auth_config()
-        return {
-            "username": config.get("username", "admin"),
-            "name": config.get("name", "Executive Director"),
-            "role": config.get("role", "Administrator")
-        }
-    return None
+    except RuntimeError:
+        raise
+    except Exception as e:
+        logger.debug(f"Token verification failed: {e}")
+        return None
+
 
 def revoke_session(token: str) -> bool:
-    """Invalidates a session token upon logout."""
+    """Signs out the user from Supabase (invalidates the JWT)."""
     if not token:
         return True
-    sessions = _get_sessions()
-    if token in sessions:
-        del sessions[token]
-        _save_sessions(sessions)
-    return True
+    try:
+        client = _get_supabase()
+        client.auth.sign_out()
+        return True
+    except Exception as e:
+        logger.warning(f"Sign out error (non-critical): {e}")
+        return True
 
-def change_password(current_password: str, new_password: str) -> tuple[bool, str]:
-    """Updates user password."""
-    config = _get_auth_config()
-    salt = config.get("salt", "")
-    expected_hash = config.get("password_hash", "")
-    test_hash, _ = _hash_password(current_password, salt)
 
-    if not secrets.compare_digest(test_hash, expected_hash):
-        return False, "Current password is incorrect."
+# ────────────────────────────────────────────────────────────────────
+# Admin User Management
+# ────────────────────────────────────────────────────────────────────
 
-    if len(new_password) < 4:
-        return False, "New password must be at least 4 characters."
+def admin_create_user(email: str, password: str, role: str = "viewer", name: str = "") -> Dict[str, Any]:
+    """
+    Creates a new user in Supabase (Admin API).
+    Sets role and name in user_metadata.
+    Only callable with the service_role key.
+    """
+    try:
+        client = _get_admin_client()
+        user_name = name.strip() or email.split("@")[0].title()
 
-    new_hash, new_salt = _hash_password(new_password)
-    config["password_hash"] = new_hash
-    config["salt"] = new_salt
-    config["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        response = client.auth.admin.create_user({
+            "email": email.strip().lower(),
+            "password": password,
+            "email_confirm": True,    # Skip email confirmation — admin is creating it
+            "user_metadata": {
+                "role": role,
+                "name": user_name
+            }
+        })
 
-    with open(AUTH_FILE, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
+        if not response or not response.user:
+            return {"success": False, "error": "Failed to create user in Supabase"}
 
-    return True, "Password changed successfully."
+        return {
+            "success": True,
+            "user_id": str(response.user.id),
+            "email": response.user.email,
+            "role": role,
+            "name": user_name
+        }
+
+    except RuntimeError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        error_str = str(e)
+        if "already registered" in error_str.lower() or "already been registered" in error_str.lower():
+            return {"success": False, "error": f"User with email '{email}' already exists."}
+        logger.error(f"Error creating user {email}: {e}", exc_info=True)
+        return {"success": False, "error": error_str}
+
+
+def admin_list_users() -> Dict[str, Any]:
+    """
+    Lists all users in Supabase Auth (Admin API).
+    Returns list of user objects with email, role, name, created_at.
+    """
+    try:
+        client = _get_admin_client()
+        response = client.auth.admin.list_users()
+
+        users = []
+        for u in (response or []):
+            metadata = getattr(u, "user_metadata", {}) or {}
+            users.append({
+                "user_id": str(u.id),
+                "email": u.email,
+                "role": metadata.get("role", "viewer"),
+                "name": metadata.get("name", (u.email or "").split("@")[0].title()),
+                "created_at": str(u.created_at) if u.created_at else "",
+                "last_sign_in": str(u.last_sign_in_at) if getattr(u, "last_sign_in_at", None) else "Never"
+            })
+
+        return {"success": True, "users": users, "total": len(users)}
+
+    except RuntimeError as e:
+        return {"success": False, "error": str(e), "users": []}
+    except Exception as e:
+        logger.error(f"Error listing users: {e}", exc_info=True)
+        return {"success": False, "error": str(e), "users": []}
+
+
+def admin_delete_user(user_id: str) -> Dict[str, Any]:
+    """
+    Deletes a user from Supabase Auth by their UUID.
+    Only callable by admin with service_role key.
+    """
+    try:
+        client = _get_admin_client()
+        client.auth.admin.delete_user(user_id)
+        return {"success": True, "deleted_user_id": user_id}
+
+    except RuntimeError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+def admin_update_user_role(user_id: str, role: str) -> Dict[str, Any]:
+    """
+    Updates the role of an existing user in Supabase user_metadata.
+    """
+    try:
+        client = _get_admin_client()
+        response = client.auth.admin.update_user_by_id(
+            user_id,
+            {"user_metadata": {"role": role}}
+        )
+        if not response or not response.user:
+            return {"success": False, "error": "User not found"}
+
+        return {"success": True, "user_id": user_id, "new_role": role}
+
+    except RuntimeError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        logger.error(f"Error updating role for {user_id}: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+# ────────────────────────────────────────────────────────────────────
+# Backward-compat shim for old change_password calls
+# ────────────────────────────────────────────────────────────────────
+def change_password(current_password: str, new_password: str):
+    """
+    Legacy shim — password changes are now handled via Supabase dashboard
+    or by having the user reset via email. This endpoint is kept for
+    API compatibility but returns a descriptive message.
+    """
+    return False, (
+        "Password changes are managed via Supabase. "
+        "Use the Supabase dashboard or trigger a password reset email."
+    )

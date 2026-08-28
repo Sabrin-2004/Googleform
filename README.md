@@ -1,170 +1,132 @@
-# CEO Portfolio Command Center — Backend & Multi-Sheet Pipeline
+# Executive Portfolio Command Center
 
-A production-ready executive dashboard and backend architecture designed for multi-company portfolio tracking, strategic decisions, priorities, and real-time synchronization with **Google Sheets (including 3+ sheets/tabs)** and **Multi-File CSV / Excel workbooks**.
-
----
-
-## 🌟 Key Capabilities
-
-1. **Multi-Sheet Google Sheets Sync (3+ Sheets/Tabs)**:
-   - Synchronizes directly via Google Cloud Service Account (`credentials.json`) or Public/Published sheet link.
-   - Automatically parses multiple tabs/sheets:
-     - **Domain-based Tabs**: `Actions`, `Decisions`, `Priorities`.
-     - **Company-based Tabs**: `Aarna`, `Abhee`, `Pranik`, `Miraee`, `RedT`, `Casa Monde`.
-2. **Multi-File CSV & Excel Uploader**:
-   - Drag-and-drop 3+ `.csv` files simultaneously or upload a multi-tab `.xlsx` workbook.
-   - Automatic column fuzzy matching (matches `Item`, `Task`, `Action Item`, `Status`, `Owner`, `Founder Dependency`, `Comments`, `Decision`, `Impact`, `Horizon`, `Why`, etc.).
-3. **Robust Backend API (`app.py`)**:
-   - High-speed REST API for complete CRUD operations on actions, decisions, priorities, and settings.
-   - Atomic disk writes to `data/dashboard_data.json` with automated timestamped backup rotation.
-4. **Universal Frontend (`CEO_Dashboard.html`)**:
-   - Works seamlessly when connected to the backend server at `http://localhost:5000`.
-   - Automatically falls back to browser `localStorage` when opened as a static local file without a server.
-   - Live status indicator (🟢 Backend Live / 🟡 Standalone, ☁️ Google Sheets Sync badge).
-   - Instant export to multi-tab Excel (`.xlsx`), CSV archive (`.zip`), or JSON.
+A secure, multi-tier executive dashboard with Supabase role-based access control (Admin vs. Viewer), Google Sheets synchronization, Excel/CSV ingestion pipeline, and real-time portfolio management.
 
 ---
 
-## 📁 Project Structure
+## 🌟 Architecture & Access Control
 
-```
-gfd/
-├── app.py                      # FastAPI REST API server & router
-├── CEO_Dashboard.html          # Executive frontend command center
-├── requirements.txt            # Python dependencies (FastAPI, uvicorn, pandas, openpyxl, etc.)
-├── .env.example                # Environment variable template
-├── .env                        # Local environment configuration
-├── run.bat                     # 1-click startup script for Windows Command Prompt
-├── run.ps1                     # 1-click startup script for Windows PowerShell
-├── services/
-│   ├── __init__.py
-│   ├── storage.py              # Persistent storage & backup engine (JSON database)
-│   ├── sheets_sync.py          # Google Sheets API client & 3+ tab parser
-│   ├── data_validator.py       # Column normalizer & schema validator
-│   └── importer.py             # Multi-CSV and Excel parser & exporter
-├── data/
-│   ├── dashboard_data.json     # Primary active database
-│   └── backups/                # Automated historical backups
-├── sample_data/
-│   ├── actions.csv             # Sample Action items CSV
-│   ├── decisions.csv           # Sample Decisions CSV
-│   ├── priorities.csv          # Sample Strategic Priorities CSV
-│   ├── portfolio_multi_sheet.xlsx # Sample 4-tab Excel workbook
-│   └── generate_portfolio_excel.py # Multi-tab Excel generator script
-└── tests/
-    └── test_backend.py         # Full backend test suite
-```
+| Role | Access Permissions | Navigation |
+|---|---|---|
+| **Admin** | Full read/write access, add/edit/delete tasks & decisions, Google Sheets sync, user management, and appearance settings | Overview, Register, Decisions, Priorities, Data, Webhooks, Settings, Admin Panel |
+| **Viewer (User)** | Read-only access to dashboard data. Write/edit controls, sync buttons, and settings are hidden | Overview, Register, Decisions, Priorities (restricted tabs hidden) |
 
 ---
 
-## 🚀 Quick Start (Running Locally)
+## 🚀 Quick Start (Local Development)
 
-### Option A: 1-Click Launch on Windows
-Double-click `run.bat` or run in PowerShell:
-```powershell
-.\run.ps1
+### 1. Configure Environment Variables
+Copy `.env.example` to `.env` and fill in your Supabase credentials:
+```bash
+cp .env.example .env
+```
+Inside `.env`:
+```ini
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-secret-key
+GOOGLE_SHEET_ID=1alUCBe5MRRZYp6hAcKuLsf0YAEhNx8h-s7UQOizgTfg
+PORT=5000
+HOST=0.0.0.0
 ```
 
-### Option B: Manual Command Line
-```powershell
-# 1. Install dependencies
-python -m pip install -r requirements.txt
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
-# 2. Start the server
+### 3. Start the Application
+```bash
 python app.py
 ```
-Open your browser to: **`http://localhost:5000`**
+Open **[http://localhost:5000/login](http://localhost:5000/login)** in your browser.
 
 ---
 
-## 📊 Google Sheets Setup Guide (Step-by-Step)
+## 🐳 Docker Deployment
 
-### Step 12: Create your Google Sheet
-1. Open [sheets.google.com](https://sheets.google.com) and click **"+" (Blank Spreadsheet)**.
-2. Name your spreadsheet (e.g. `Portfolio Master Tracker`).
+### Using Docker Compose
+```bash
+docker compose up -d --build
+```
 
-### Step 13: Share with Service Account
-1. From Google Cloud Console, create a **Service Account** and download its JSON key file as `credentials.json`.
-2. Place `credentials.json` in the root folder of this project (`c:\Users\Ssabrin\Desktop\gfd\credentials.json`).
-3. Open `credentials.json` and copy the `client_email` address (e.g. `robot-portfolio@your-project.iam.gserviceaccount.com`).
-4. In your Google Sheet, click the top-right **Share** button, paste the `client_email`, give it **Viewer** or **Editor** permissions, and click **Share**.
+### Using Plain Docker
+```bash
+docker build -t command-center .
+docker run -d -p 5000:5000 --env-file .env --name command-center command-center
+```
 
-### Step 14: Get your Spreadsheet ID
-1. Look at the URL in your browser:
+---
+
+## ☁️ Cloud Deployment Options
+
+### Option 1: Render (Recommended)
+1. Push your code to GitHub / GitLab.
+2. Go to [render.com](https://render.com) and click **New > Web Service**.
+3. Connect your repository. Render will automatically detect `render.yaml` or you can set:
+   - **Environment:** `Python 3`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn app:app --host 0.0.0.0 --port $PORT`
+4. Under **Environment Variables**, add:
+   - `SUPABASE_URL`: Your Supabase Project URL
+   - `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase Service Role Key
+   - `GOOGLE_SHEET_ID`: (Optional) Your Google Sheet ID
+   - `GOOGLE_CREDENTIALS_JSON`: (Optional) Paste raw JSON from service account key file
+
+### Option 2: Railway
+1. Go to [railway.app](https://railway.app) and select **New Project > Deploy from GitHub repo**.
+2. Add your environment variables in the **Variables** tab (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
+3. Railway automatically uses the `Procfile` / `Dockerfile` to deploy.
+
+### Option 3: Heroku / Dokku / Cloud VM
+1. The repository includes a production `Procfile`:
    ```
-   https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890/edit#gid=0
+   web: uvicorn app:app --host 0.0.0.0 --port ${PORT:-5000}
    ```
-2. The ID is the long string between `/d/` and `/edit` (e.g. `1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890`).
-
-### Step 17: Configure Environment Variables
-You can either enter the ID directly in the Dashboard UI (under the **Data** tab) or set it in your `.env` / terminal:
-
-**Windows PowerShell:**
-```powershell
-$env:GOOGLE_SHEET_ID="1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890"
-$env:GOOGLE_CREDENTIALS_FILE="credentials.json"
-```
-
-**Windows Command Prompt (cmd):**
-```cmd
-set GOOGLE_SHEET_ID=1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890
-set GOOGLE_CREDENTIALS_FILE=credentials.json
-```
-
-Or simply add it to `.env`:
-```ini
-GOOGLE_SHEET_ID=1AbCdEfGhIjKlMnOpQrStUvWxYz1234567890
-GOOGLE_CREDENTIALS_FILE=credentials.json
-```
+2. Configure config vars via CLI:
+   ```bash
+   heroku config:set SUPABASE_URL=https://your-id.supabase.co SUPABASE_SERVICE_ROLE_KEY=your-key
+   ```
 
 ---
 
-## 📑 Multi-Sheet Formats Supported (3+ Sheets/Tabs)
+## 🔑 Initial Admin Setup (Supabase)
 
-The backend auto-detects both multi-sheet architectures:
-
-### Model 1: Domain Tabs (Recommended for Master Review)
-Create 3+ tabs in your Google Sheet or Excel workbook:
-- **Tab 1 (`Actions`)**: Columns: `Company`, `Function`, `Action Item`, `Status`, `Owner`, `Founder Dependency`, `Comments`
-- **Tab 2 (`Decisions`)**: Columns: `Decision`, `Owner`, `Status`, `Impact if delayed`, `Deadline`
-- **Tab 3 (`Priorities`)**: Columns: `Priority`, `Group`, `Focus Area`, `Why`, `Horizon`
-
-### Model 2: Company Tabs (Recommended for Multi-Venture Groups)
-Create separate tabs for each company:
-- **Tab 1 (`Aarna`)**: Action items for Aarna.
-- **Tab 2 (`Pranik`)**: Action items for Pranik.
-- **Tab 3 (`Abhee`)**: Action items for Abhee.
-- **Tab 4 (`Decisions`)**: Group decisions queue.
+To create the first Admin user:
+1. Go to **Supabase Dashboard > Authentication > Users > Add user**.
+2. In Supabase **SQL Editor**, run:
+   ```sql
+   UPDATE auth.users
+   SET raw_user_meta_data = '{"role": "admin", "name": "Executive Admin"}'::jsonb
+   WHERE email = 'your-admin-email@example.com';
+   ```
+3. Log in at `/login` and navigate to `/admin` to invite and create Viewer accounts directly from the UI.
 
 ---
 
-## 🧪 Testing Backend & Uploads
+## 📁 Repository Structure
 
-Run the automated test suite anytime:
-```powershell
-python -m unittest discover -s tests
 ```
-
----
-
-## 📡 REST API Reference
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/` | Serves dashboard frontend |
-| `GET` | `/api/health` | Backend status & credentials check |
-| `GET` | `/api/data` | Returns complete dashboard state |
-| `POST`| `/api/save` | Saves entire state |
-| `POST`| `/api/actions` | Create a new action item |
-| `PUT` | `/api/actions/<id>` | Update action item |
-| `DELETE`| `/api/actions/<id>` | Delete action item |
-| `POST`| `/api/decisions` | Create decision |
-| `PUT` | `/api/decisions/<id>` | Update decision |
-| `DELETE`| `/api/decisions/<id>` | Delete decision |
-| `POST`| `/api/priorities` | Create priority |
-| `PUT` | `/api/priorities/<id>` | Update priority |
-| `DELETE`| `/api/priorities/<id>` | Delete priority |
-| `POST`| `/api/sync/google-sheets` | Trigger Google Sheets sync |
-| `POST`| `/api/upload` | Multi-file CSV / Excel upload |
-| `GET` | `/api/export/excel` | Download multi-tab `.xlsx` |
-| `GET` | `/api/export/csv` | Download `.zip` of CSVs |
+├── app.py                  # FastAPI server & route handlers
+├── requirements.txt        # Python dependencies
+├── Dockerfile              # Container definition
+├── docker-compose.yml      # Multi-container / local orchestration
+├── Procfile                # Heroku / Railway / Render process runner
+├── render.yaml             # Render infrastructure-as-code
+├── .env.example            # Environment variables template
+├── services/
+│   ├── auth_service.py     # Supabase Auth integration & Admin API
+│   ├── sheets_sync.py      # Google Sheets multi-tab sync
+│   ├── storage.py          # State persistence & JSON storage
+│   ├── importer.py         # CSV / Excel multi-file parser
+│   └── webhook_service.py  # Inbound webhook ingestion
+├── static/
+│   ├── index.html          # Main executive dashboard
+│   ├── login.html          # Glassmorphism authentication UI
+│   ├── admin-panel.html    # User management & role assignment UI
+│   ├── css/
+│   │   ├── styles.css      # Dashboard styling
+│   │   └── login.css       # Auth & admin panel design system
+│   └── js/
+│       └── app.js          # Core frontend application & role logic
+└── data/                   # Persistent storage directory
+```

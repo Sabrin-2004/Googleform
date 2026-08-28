@@ -6,7 +6,7 @@ import os
 import io
 import datetime
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,7 +49,11 @@ from services.auth_service import (
     authenticate_user,
     verify_session_token,
     revoke_session,
-    change_password
+    change_password,
+    admin_create_user,
+    admin_list_users,
+    admin_delete_user,
+    admin_update_user_role
 )
 from services.webhook_service import (
     process_inbound_webhook,
@@ -95,6 +99,24 @@ def serve_dashboard():
     if os.path.exists(html_path):
         return FileResponse(html_path, media_type="text/html")
     raise HTTPException(status_code=404, detail="Dashboard frontend HTML not found")
+
+
+@app.get("/login")
+def serve_login():
+    """Serves the login page."""
+    login_path = os.path.join(os.path.dirname(__file__), "static", "login.html")
+    if os.path.exists(login_path):
+        return FileResponse(login_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Login page not found")
+
+
+@app.get("/admin")
+def serve_admin_panel():
+    """Serves the Admin Panel page (protected in frontend by role check)."""
+    admin_path = os.path.join(os.path.dirname(__file__), "static", "admin-panel.html")
+    if os.path.exists(admin_path):
+        return FileResponse(admin_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Admin panel not found")
 
 # ==========================================
 # Health & Status API
@@ -801,35 +823,42 @@ def export_csv_zip():
 
 @app.post("/api/auth/login")
 async def login_api(request: Request):
-    """Authenticates executive user credentials and returns session token."""
+    """Authenticates user credentials via Supabase and returns a JWT session token."""
     try:
         data = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    username = data.get("username", "").strip()
+    # Accept both 'email' and legacy 'username' field
+    email = (data.get("email") or data.get("username", "")).strip()
     password = data.get("password", "").strip()
 
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and password are required.")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
 
-    user = authenticate_user(username, password)
+    try:
+        user = authenticate_user(email, password)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid username or password.")
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     return {
         "success": True,
         "token": user["token"],
+        "refresh_token": user.get("refresh_token", ""),
         "user": {
-            "username": user["username"],
+            "email": user["email"],
             "name": user["name"],
-            "role": user["role"]
+            "role": user["role"],
+            "user_id": user.get("user_id", "")
         }
     }
 
 @app.get("/api/auth/me")
 def get_current_user_api(request: Request):
-    """Verifies existing session token and returns active user profile."""
+    """Verifies existing Supabase JWT and returns active user profile."""
     auth_header = request.headers.get("Authorization", "")
     token = ""
     if auth_header.startswith("Bearer "):
@@ -839,7 +868,11 @@ def get_current_user_api(request: Request):
     elif "token" in request.query_params:
         token = request.query_params["token"].strip()
 
-    user = verify_session_token(token)
+    try:
+        user = verify_session_token(token)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
     if not user:
         raise HTTPException(status_code=401, detail="Session expired or invalid.")
 
@@ -848,6 +881,99 @@ def get_current_user_api(request: Request):
         "authenticated": True,
         "user": user
     }
+
+
+# ==========================================
+# Admin User Management APIs
+# ==========================================
+
+def _require_admin(request: Request) -> Dict:
+    """Helper: extracts and verifies token, raises 403 if not admin."""
+    auth_header = request.headers.get("Authorization", "")
+    token = ""
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    elif "X-Auth-Token" in request.headers:
+        token = request.headers["X-Auth-Token"].strip()
+
+    try:
+        user = verify_session_token(token)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return user
+
+
+@app.get("/api/admin/users")
+def list_users_api(request: Request):
+    """Returns all registered users. Admin only."""
+    _require_admin(request)
+    result = admin_list_users()
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Failed to list users"))
+    return result
+
+
+@app.post("/api/admin/users")
+async def create_user_api(request: Request):
+    """Creates a new user with email, password, and role. Admin only."""
+    _require_admin(request)
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    email = data.get("email", "").strip()
+    password = data.get("password", "").strip()
+    role = data.get("role", "viewer").strip()
+    name = data.get("name", "").strip()
+
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+    if role not in ("admin", "viewer"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'viewer'.")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
+    result = admin_create_user(email, password, role, name)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to create user"))
+    return result
+
+
+@app.delete("/api/admin/users/{user_id}")
+def delete_user_api(user_id: str, request: Request):
+    """Deletes a user by their Supabase UUID. Admin only."""
+    current = _require_admin(request)
+    if current.get("user_id") == user_id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account.")
+    result = admin_delete_user(user_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to delete user"))
+    return result
+
+
+@app.patch("/api/admin/users/{user_id}/role")
+async def update_user_role_api(user_id: str, request: Request):
+    """Updates the role of an existing user. Admin only."""
+    current = _require_admin(request)
+    if current.get("user_id") == user_id:
+        raise HTTPException(status_code=400, detail="You cannot change your own role.")
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    role = data.get("role", "").strip()
+    if role not in ("admin", "viewer"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'viewer'.")
+    result = admin_update_user_role(user_id, role)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to update role"))
+    return result
 
 @app.post("/api/auth/logout")
 async def logout_api(request: Request):

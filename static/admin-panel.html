@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel — User Management</title>
+  <meta name="description" content="Admin panel to create and manage dashboard user accounts.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/static/css/login.css">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    /* Lucide SVG sizing */
+    .ap-logo svg         { width: 22px; height: 22px; stroke-width: 2; color: #fff; }
+    .btn-sm svg          { width: 14px; height: 14px; stroke-width: 2; }
+    .ap-card-header svg  { width: 17px; height: 17px; stroke-width: 2; color: #6366f1; }
+    .role-icon svg       { width: 22px; height: 22px; stroke-width: 2; color: #a5b4fc; }
+    .btn-icon svg        { width: 13px; height: 13px; stroke-width: 2; }
+    .form-alert svg      { width: 14px; height: 14px; stroke-width: 2; flex-shrink: 0; }
+    .users-empty svg     { width: 40px; height: 40px; stroke-width: 1.5; color: #334155; }
+    .role-badge svg      { width: 11px; height: 11px; stroke-width: 2.5; }
+  </style>
+  <style>
+    /* ── Admin Panel Extra Styles ── */
+    .ap-page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      padding: 32px 20px;
+    }
+
+    .ap-container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .ap-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 36px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .ap-header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .ap-logo {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.35);
+    }
+
+    .ap-header-title h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.3px;
+    }
+
+    .ap-header-title p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .ap-header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-sm {
+      padding: 9px 16px;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.10);
+      color: #94a3b8;
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.10);
+      color: #f1f5f9;
+    }
+
+    .btn-danger {
+      background: rgba(248,113,113,0.12);
+      border-color: rgba(248,113,113,0.25);
+      color: #f87171;
+    }
+
+    .btn-danger:hover {
+      background: rgba(248,113,113,0.22);
+    }
+
+    /* ── Two Column Layout ── */
+    .ap-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 720px) {
+      .ap-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ── */
+    .ap-card {
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      overflow: hidden;
+    }
+
+    .ap-card-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ap-card-header h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .ap-card-header p {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .ap-card-body {
+      padding: 24px;
+    }
+
+    /* ── Create User Form ── */
+    .create-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+
+    .form-input, .form-select {
+      padding: 10px 12px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-family: var(--font);
+      font-size: 13.5px;
+      outline: none;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+
+    .form-select option {
+      background: #0d1117;
+      color: #f1f5f9;
+    }
+
+    .form-input::placeholder { color: #475569; }
+
+    .form-input:focus, .form-select:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.25);
+    }
+
+    .role-select-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .role-option {
+      position: relative;
+    }
+
+    .role-option input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .role-option label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 10px;
+      background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .role-option label:hover {
+      border-color: rgba(99,102,241,0.4);
+      background: rgba(99,102,241,0.07);
+    }
+
+    .role-option input:checked + label {
+      border-color: #6366f1;
+      background: rgba(99,102,241,0.15);
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.3);
+    }
+
+    .role-icon { font-size: 22px; }
+
+    .role-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .role-desc {
+      font-size: 10.5px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    .btn-create {
+      padding: 11px 16px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-family: var(--font);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .btn-create:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(99,102,241,0.4); }
+    .btn-create:active { transform: none; }
+    .btn-create:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .form-alert {
+      display: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 500;
+      animation: alert-in 0.3s ease;
+    }
+
+    .form-alert.error {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(248,113,113,0.10);
+      border: 1px solid rgba(248,113,113,0.25);
+      color: #f87171;
+    }
+
+    .form-alert.success {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(52,211,153,0.10);
+      border: 1px solid rgba(52,211,153,0.25);
+      color: #34d399;
+    }
+
+    /* ── Users Table ── */
+    .users-table-wrapper {
+      overflow-x: auto;
+    }
+
+    .users-empty {
+      padding: 40px 24px;
+      text-align: center;
+      color: #475569;
+      font-size: 13px;
+    }
+
+    .users-empty span { font-size: 32px; display: block; margin-bottom: 8px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s ease;
+    }
+
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody td {
+      padding: 13px 16px;
+      font-size: 13px;
+      color: #cbd5e1;
+      vertical-align: middle;
+    }
+
+    .user-email {
+      font-weight: 500;
+      color: #f1f5f9;
+    }
+
+    .user-name {
+      font-size: 11.5px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .role-badge.admin {
+      background: rgba(99,102,241,0.18);
+      color: #a5b4fc;
+      border: 1px solid rgba(99,102,241,0.3);
+    }
+
+    .role-badge.viewer {
+      background: rgba(6,182,212,0.12);
+      color: #67e8f9;
+      border: 1px solid rgba(6,182,212,0.25);
+    }
+
+    .date-cell {
+      font-size: 12px;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    .action-cell {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-icon {
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .btn-icon.delete {
+      color: #f87171;
+      border-color: rgba(248,113,113,0.2);
+    }
+
+    .btn-icon.delete:hover {
+      background: rgba(248,113,113,0.12);
+      border-color: rgba(248,113,113,0.35);
+    }
+
+    /* Loading shimmer */
+    .shimmer-row td {
+      padding: 12px 16px;
+    }
+
+    .shimmer-bar {
+      height: 14px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.05) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+    }
+
+    @keyframes shimmer {
+      from { background-position: 200% 0; }
+      to   { background-position: -200% 0; }
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      padding: 14px 24px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .stat-count {
+      font-weight: 700;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Animated Background -->
+  <div class="login-bg">
+    <div class="login-grid"></div>
+    <div class="login-bg-blob3"></div>
+  </div>
+
+  <div class="ap-page">
+    <div class="ap-container">
+
+      <!-- Header -->
+      <header class="ap-header">
+        <div class="ap-header-left">
+          <div class="ap-logo" aria-hidden="true"><i data-lucide="shield-check"></i></div>
+          <div class="ap-header-title">
+            <h1>User Management</h1>
+            <p>Create and manage dashboard access</p>
+          </div>
+        </div>
+        <div class="ap-header-actions">
+          <a href="/" class="btn-sm btn-ghost" id="back-btn"><i data-lucide="arrow-left"></i> Dashboard</a>
+          <button class="btn-sm btn-danger" id="logout-btn"><i data-lucide="log-out"></i> Sign Out</button>
+        </div>
+      </header>
+
+      <!-- Main Grid -->
+      <div class="ap-grid">
+
+        <!-- LEFT: Create User Form -->
+        <div class="ap-card">
+          <div class="ap-card-header">
+            <div style="display:flex;align-items:center;gap:8px">
+              <i data-lucide="user-plus"></i>
+              <div>
+                <h2>Create New User</h2>
+                <p>Grant dashboard access to a new user</p>
+              </div>
+            </div>
+          </div>
+          <div class="ap-card-body">
+            <form class="create-form" id="create-form" novalidate>
+
+              <div id="create-alert" class="form-alert"></div>
+
+              <div class="form-group">
+                <label class="form-label" for="new-name">Full Name (optional)</label>
+                <input type="text" id="new-name" class="form-input" placeholder="e.g. Priya Sharma">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="new-email">Email Address *</label>
+                <input type="email" id="new-email" class="form-input" placeholder="user@example.com" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="new-password">Password *</label>
+                <input type="password" id="new-password" class="form-input" placeholder="Min. 6 characters" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Access Role *</label>
+                <div class="role-select-wrapper">
+                  <div class="role-option">
+                    <input type="radio" name="new-role" id="role-viewer" value="viewer" checked>
+                    <label for="role-viewer">
+                      <span class="role-icon"><i data-lucide="eye"></i></span>
+                      <span class="role-name">Viewer</span>
+                      <span class="role-desc">Read-only dashboard access</span>
+                    </label>
+                  </div>
+                  <div class="role-option">
+                    <input type="radio" name="new-role" id="role-admin" value="admin">
+                    <label for="role-admin">
+                      <span class="role-icon"><i data-lucide="shield"></i></span>
+                      <span class="role-name">Admin</span>
+                      <span class="role-desc">Full access + user management</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-create" id="create-btn">
+                <span id="create-btn-text">Create User</span>
+                <span id="create-spinner" style="display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;display:none"></span>
+              </button>
+
+            </form>
+          </div>
+        </div>
+
+        <!-- RIGHT: Users Table -->
+        <div class="ap-card">
+          <div class="ap-card-header">
+            <div style="display:flex;align-items:center;gap:8px">
+              <i data-lucide="users"></i>
+              <div>
+                <h2>All Users</h2>
+                <p>Manage existing user accounts</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="users-table-wrapper">
+            <div id="users-container">
+              <!-- Loading state -->
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="users-tbody">
+                  <tr class="shimmer-row">
+                    <td><div class="shimmer-bar" style="width:70%"></div></td>
+                    <td><div class="shimmer-bar" style="width:50px"></div></td>
+                    <td><div class="shimmer-bar" style="width:80px"></div></td>
+                    <td><div class="shimmer-bar" style="width:60px"></div></td>
+                  </tr>
+                  <tr class="shimmer-row">
+                    <td><div class="shimmer-bar" style="width:60%"></div></td>
+                    <td><div class="shimmer-bar" style="width:50px"></div></td>
+                    <td><div class="shimmer-bar" style="width:80px"></div></td>
+                    <td><div class="shimmer-bar" style="width:60px"></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="stats-bar" id="stats-bar" style="display:none">
+            <div class="stat-item">
+              <span>Total:</span>
+              <span class="stat-count" id="stat-total">0</span>
+            </div>
+            <div class="stat-item">
+              <span>Admins:</span>
+              <span class="stat-count" id="stat-admins">0</span>
+            </div>
+            <div class="stat-item">
+              <span>Viewers:</span>
+              <span class="stat-count" id="stat-viewers">0</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let currentUserId = null;
+
+    // ── Auth guard: only admins allowed ──────────────────────────────
+    function getToken() {
+      return sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token');
+    }
+
+    function getCurrentUser() {
+      try {
+        return JSON.parse(localStorage.getItem('gcc_user') || '{}');
+      } catch { return {}; }
+    }
+
+    async function guardAdmin() {
+      const token = getToken();
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) { window.location.href = '/login'; return; }
+        const data = await res.json();
+        if (data.user.role !== 'admin') {
+          window.location.href = '/';
+          return;
+        }
+        currentUserId = data.user.user_id;
+      } catch {
+        window.location.href = '/login';
+      }
+    }
+
+    // ── Logout ────────────────────────────────────────────────────────
+    $('logout-btn').addEventListener('click', async () => {
+      const token = getToken();
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        }).catch(() => {});
+      }
+      sessionStorage.removeItem('gcc_token');
+      localStorage.removeItem('gcc_token');
+      localStorage.removeItem('gcc_user');
+      window.location.href = '/login';
+    });
+
+    // ── Load Users ────────────────────────────────────────────────────
+    async function loadUsers() {
+      const token = getToken();
+      try {
+        const res = await fetch('/api/admin/users', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to load users');
+        renderUsers(data.users || []);
+      } catch (err) {
+        $('users-tbody').innerHTML = `
+          <tr><td colspan="4" style="text-align:center;padding:24px;color:#f87171;font-size:13px;">
+            ⚠️ ${err.message}
+          </td></tr>`;
+      }
+    }
+
+    function formatDate(str) {
+      if (!str || str === 'Never') return 'Never';
+      try {
+        return new Date(str).toLocaleDateString('en-IN', {
+          day: '2-digit', month: 'short', year: 'numeric'
+        });
+      } catch { return str; }
+    }
+
+    // Inline SVGs for JS-rendered content
+    const SVG_SHIELD = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+    const SVG_EYE    = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const SVG_TRASH  = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`;
+    const SVG_USERS  = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+
+    function renderUsers(users) {
+      const tbody = $('users-tbody');
+
+      if (!users.length) {
+        tbody.innerHTML = `
+          <tr><td colspan="4">
+            <div class="users-empty">
+              ${SVG_USERS}
+              <span style="display:block;margin-top:8px">No users yet. Create the first one!</span>
+            </div>
+          </td></tr>`;
+        $('stats-bar').style.display = 'none';
+        return;
+      }
+
+      tbody.innerHTML = users.map(u => `
+        <tr data-uid="${u.user_id}">
+          <td>
+            <div class="user-email">${escHtml(u.email)}</div>
+            ${u.name ? `<div class="user-name">${escHtml(u.name)}</div>` : ''}
+          </td>
+          <td>
+            <span class="role-badge ${u.role}">${u.role === 'admin' ? SVG_SHIELD : SVG_EYE} ${escHtml(u.role)}</span>
+          </td>
+          <td class="date-cell">${formatDate(u.created_at)}</td>
+          <td>
+            <div class="action-cell">
+              ${u.user_id !== currentUserId ? `
+                <button class="btn-icon delete" onclick="deleteUser('${escHtml(u.user_id)}', '${escHtml(u.email)}')">
+                  ${SVG_TRASH} Remove
+                </button>
+              ` : `<span style="font-size:11px;color:#475569">You</span>`}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      // Stats
+      const admins  = users.filter(u => u.role === 'admin').length;
+      const viewers = users.filter(u => u.role === 'viewer').length;
+      $('stat-total').textContent   = users.length;
+      $('stat-admins').textContent  = admins;
+      $('stat-viewers').textContent = viewers;
+      $('stats-bar').style.display = 'flex';
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ── Delete User ───────────────────────────────────────────────────
+    async function deleteUser(userId, email) {
+      if (!confirm(`Remove access for "${email}"?\n\nThis will permanently delete their account.`)) return;
+      const token = getToken();
+      try {
+        const res = await fetch(`/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Delete failed');
+        await loadUsers();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // ── Create User Form ──────────────────────────────────────────────
+    const SVG_WARN  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+    const SVG_CHECK = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+
+    function showCreateAlert(msg, type) {
+      const el = $('create-alert');
+      el.className = 'form-alert ' + type;
+      el.innerHTML = (type === 'error' ? SVG_WARN : SVG_CHECK) + ' ' + escHtml(msg);
+    }
+
+    function hideCreateAlert() {
+      $('create-alert').className = 'form-alert';
+    }
+
+    $('create-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      hideCreateAlert();
+
+      const email    = $('new-email').value.trim();
+      const password = $('new-password').value.trim();
+      const name     = $('new-name').value.trim();
+      const role     = document.querySelector('input[name="new-role"]:checked').value;
+
+      if (!email || !password) {
+        showCreateAlert('Email and password are required.', 'error');
+        return;
+      }
+
+      $('create-btn').disabled = true;
+      $('create-btn-text').textContent = 'Creating…';
+
+      const token = getToken();
+      try {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ email, password, role, name })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to create user');
+
+        showCreateAlert(`User "${email}" created successfully with ${role} role!`, 'success');
+        $('create-form').reset();
+        document.getElementById('role-viewer').checked = true;
+        await loadUsers();
+
+      } catch (err) {
+        showCreateAlert(err.message, 'error');
+      } finally {
+        $('create-btn').disabled = false;
+        $('create-btn-text').textContent = 'Create User';
+      }
+    });
+
+    // ── Init ──────────────────────────────────────────────────────────
+    (async () => {
+      await guardAdmin();
+      lucide.createIcons();
+      await loadUsers();
+    })();
+  </script>
+
+</body>
+</html>

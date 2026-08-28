@@ -4,20 +4,165 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gamma Group · Executive Portfolio Command Center</title>
-  
+  <meta name="description" content="Gamma Group Executive Portfolio Command Center — secure dashboard for portfolio tracking.">
+
   <!-- External Libraries: SheetJS for Client-Side Excel/CSV Processing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  
+
   <!-- Modern Typography: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
+
   <!-- Dashboard Core Stylesheet -->
-  <link rel="stylesheet" href="/static/css/styles.css">
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="/static/css/styles.css">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    /* ── Auth Topbar injected by auth guard ── */
+    #gcc-auth-bar {
+      position: fixed;
+      top: 0; right: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 18px;
+      background: rgba(6, 9, 19, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom-left-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-top: none;
+      border-right: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 12.5px;
+    }
+
+    .auth-bar-user {
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .auth-bar-role {
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .auth-bar-role.admin {
+      background: rgba(99,102,241,0.18);
+      color: #a5b4fc;
+      border: 1px solid rgba(99,102,241,0.3);
+    }
+
+    .auth-bar-role.viewer {
+      background: rgba(6,182,212,0.12);
+      color: #67e8f9;
+      border: 1px solid rgba(6,182,212,0.25);
+    }
+
+    .auth-bar-divider {
+      width: 1px;
+      height: 16px;
+      background: rgba(255,255,255,0.10);
+    }
+
+    .auth-bar-link {
+      color: #6366f1;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 12px;
+      transition: color 0.2s;
+    }
+
+    .auth-bar-link:hover { color: #a5b4fc; }
+
+    .auth-bar-btn {
+      background: rgba(248,113,113,0.10);
+      border: 1px solid rgba(248,113,113,0.20);
+      border-radius: 6px;
+      color: #f87171;
+      font-family: 'Inter', sans-serif;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .auth-bar-btn:hover {
+      background: rgba(248,113,113,0.20);
+    }
+
+    /* Viewer overlay: disables all write controls */
+    body.gcc-viewer-mode .gcc-write-only {
+      display: none !important;
+    }
+
+    body.gcc-viewer-mode [data-action="delete"],
+    body.gcc-viewer-mode [data-action="edit"],
+    body.gcc-viewer-mode [data-action="add"],
+    body.gcc-viewer-mode button[id*="add-"],
+    body.gcc-viewer-mode button[id*="save-"],
+    body.gcc-viewer-mode button[id*="upload"],
+    body.gcc-viewer-mode button[id*="sync"],
+    body.gcc-viewer-mode input[type="file"] {
+      pointer-events: none !important;
+      opacity: 0.35 !important;
+      cursor: not-allowed !important;
+    }
+  </style>
 </head>
 <body>
+
+  <!-- Auth guard runs FIRST before showing anything -->
+  <script>
+    (async function authGuard() {
+      const token = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token');
+
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!res.ok) {
+          sessionStorage.removeItem('gcc_token');
+          localStorage.removeItem('gcc_token');
+          localStorage.removeItem('gcc_user');
+          window.location.href = '/login';
+          return;
+        }
+
+        const data = await res.json();
+        const user = data.user;
+
+        window.GCC_USER  = user;
+        window.GCC_TOKEN = token;
+        window.GCC_ROLE  = user.role;
+        localStorage.setItem('gcc_user', JSON.stringify(user));
+
+        if (user.role !== 'admin') {
+          document.body.classList.add('gcc-viewer-mode');
+        } else {
+          document.body.classList.remove('gcc-viewer-mode');
+        }
+      } catch (err) {
+        window.location.href = '/login';
+      }
+    })();
+  </script>
 
   <!-- Toast Container -->
   <div id="gcc-toast-container"></div>
@@ -33,6 +178,13 @@
   </div>
 
   <!-- Modular JavaScript Engine -->
-  <script src="/static/js/app.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (typeof window.render === 'undefined' && !document.querySelector('script[src*="app.js"][data-loaded]')) {
+      var s = document.createElement('script');
+      s.src = '/static/js/app.js';
+      document.body.appendChild(s);
+    }
+  </script>
 </body>
 </html>

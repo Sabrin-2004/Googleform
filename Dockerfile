@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Ensure data directory exists for persistent state storage
-RUN mkdir -p data
+RUN mkdir -p data/backups
 
 EXPOSE 5000
 

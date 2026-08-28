@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: command_center_app
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - HOST=0.0.0.0
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID:-1alUCBe5MRRZYp6hAcKuLsf0YAEhNx8h-s7UQOizgTfg}
+      - GOOGLE_CREDENTIALS_FILE=${GOOGLE_CREDENTIALS_FILE:-credentials.json}
+    volumes:
+      - ./data:/app/data
+      - ./credentials.json:/app/credentials.json:ro
+    restart: unless-stopped

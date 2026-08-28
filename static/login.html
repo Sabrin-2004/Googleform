@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Command Center</title>
+  <meta name="description" content="Secure login for the Executive Portfolio Command Center. Admin and authorized users only.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/static/css/login.css">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    /* Lucide SVG sizing overrides */
+    .input-icon svg       { width: 15px; height: 15px; stroke-width: 2; }
+    .toggle-password svg  { width: 16px; height: 16px; stroke-width: 2; }
+    .login-alert svg      { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+    .login-brand-icon svg { width: 28px; height: 28px; stroke-width: 2; color: #fff; }
+    .login-footer svg     { width: 13px; height: 13px; stroke-width: 2; vertical-align: middle; color: #34d399; }
+  </style>
+</head>
+<body>
+
+  <!-- Animated Background -->
+  <div class="login-bg">
+    <div class="login-grid"></div>
+    <div class="login-bg-blob3"></div>
+  </div>
+
+  <!-- Login Page -->
+  <main class="login-page">
+    <div class="login-card" role="main">
+
+      <!-- Brand -->
+      <div class="login-brand">
+        <div class="login-brand-icon" aria-hidden="true">
+          <i data-lucide="zap"></i>
+        </div>
+        <h1>Command Center</h1>
+        <p>Sign in to access your portfolio dashboard</p>
+      </div>
+
+      <!-- Error / Success Alert -->
+      <div id="login-alert" class="login-alert" role="alert" aria-live="polite">
+        <span id="login-alert-icon"></span>
+        <span id="login-alert-msg"></span>
+      </div>
+
+      <!-- Login Form -->
+      <form class="login-form" id="login-form" autocomplete="on" novalidate>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label class="form-label" for="login-email">Email Address</label>
+          <div class="input-wrapper">
+            <span class="input-icon" aria-hidden="true"><i data-lucide="mail"></i></span>
+            <input
+              type="email"
+              id="login-email"
+              name="email"
+              class="form-input"
+              placeholder="you@example.com"
+              autocomplete="email"
+              required
+              aria-required="true"
+              aria-label="Email address"
+            >
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="form-group">
+          <label class="form-label" for="login-password">Password</label>
+          <div class="input-wrapper">
+            <span class="input-icon" aria-hidden="true"><i data-lucide="lock"></i></span>
+            <input
+              type="password"
+              id="login-password"
+              name="password"
+              class="form-input"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+              aria-required="true"
+              aria-label="Password"
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              id="toggle-pwd"
+              aria-label="Toggle password visibility"
+              title="Show / hide password"
+            >
+              <i data-lucide="eye" id="icon-eye"></i>
+              <i data-lucide="eye-off" id="icon-eye-off" style="display:none"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-login" id="login-btn" aria-label="Sign in">
+          <span class="btn-text">Sign In</span>
+          <div class="btn-spinner" aria-hidden="true"></div>
+        </button>
+
+      </form>
+
+      <!-- Footer -->
+      <div class="login-footer">
+        <span>
+          <span class="dot" aria-hidden="true"></span>
+          Secured by Supabase · Access restricted to authorized users
+        </span>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // Render all Lucide icons on page load
+    lucide.createIcons();
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+
+    function showAlert(msg, type = 'error') {
+      const el   = $('login-alert');
+      const icon = $('login-alert-icon');
+      const text = $('login-alert-msg');
+      el.className = 'login-alert ' + type;
+      icon.innerHTML = type === 'error'
+        ? '<i data-lucide="alert-triangle"></i>'
+        : '<i data-lucide="check-circle-2"></i>';
+      text.textContent = msg;
+      lucide.createIcons();
+    }
+
+    function hideAlert() {
+      $('login-alert').className = 'login-alert';
+    }
+
+    function setLoading(loading) {
+      const btn = $('login-btn');
+      if (loading) {
+        btn.classList.add('loading');
+        btn.disabled = true;
+      } else {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    }
+
+    // ── Toggle password visibility ────────────────────────────────────
+    $('toggle-pwd').addEventListener('click', () => {
+      const input  = $('login-password');
+      const isText = input.type === 'text';
+      input.type = isText ? 'password' : 'text';
+      $('icon-eye').style.display     = isText ? '' : 'none';
+      $('icon-eye-off').style.display = isText ? 'none' : '';
+    });
+
+    // ── Check if already logged in ────────────────────────────────────
+    (async function checkExistingSession() {
+      const token = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token');
+      if (!token) return;
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          redirectByRole(data.user.role);
+        }
+      } catch (_) { /* no existing session */ }
+    })();
+
+    function redirectByRole(role) {
+      window.location.href = '/';
+    }
+
+    // ── Form Submit ───────────────────────────────────────────────────
+    $('login-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      hideAlert();
+
+      const email    = $('login-email').value.trim();
+      const password = $('login-password').value;
+
+      if (!email || !password) {
+        showAlert('Please enter your email and password.');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'Authentication failed. Please check your credentials.');
+        }
+
+        // Persist session
+        const token = data.token;
+        sessionStorage.setItem('gcc_token', token);
+        localStorage.setItem('gcc_token', token);
+        localStorage.setItem('gcc_user', JSON.stringify(data.user));
+
+        showAlert('Login successful! Redirecting…', 'success');
+        setTimeout(() => redirectByRole(data.user.role), 700);
+
+      } catch (err) {
+        showAlert(err.message || 'Login failed. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // ── Keyboard: Enter submits ───────────────────────────────────────
+    ['login-email', 'login-password'].forEach(id => {
+      $(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') $('login-form').requestSubmit();
+      });
+    });
+  </script>
+
+</body>
+</html>

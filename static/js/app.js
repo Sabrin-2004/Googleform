@@ -78,15 +78,25 @@
   let activeStatusDropdown = null;
 
   // Authentication State
-  let authToken = localStorage.getItem('gcc_auth_token') || '';
+  let authToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || '';
   let currentUser = null;
   try {
-    const savedUser = localStorage.getItem('gcc_auth_user');
+    const savedUser = localStorage.getItem('gcc_user') || localStorage.getItem('gcc_auth_user');
     if(savedUser) currentUser = JSON.parse(savedUser);
   } catch(e){}
 
+  function isAdmin(){
+    return Boolean(currentUser && (currentUser.role === 'admin' || currentUser.role === 'Administrator'));
+  }
+  function isViewer(){
+    return !isAdmin();
+  }
+
   async function apiFetch(endpoint, options = {}){
     options.headers = options.headers || {};
+    if(!authToken){
+      authToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || '';
+    }
     if(authToken){
       if(options.headers instanceof Headers){
         options.headers.set('Authorization', `Bearer ${authToken}`);
@@ -102,6 +112,12 @@
         isBackendConnected = true;
         return await res.json();
       }
+      if(res.status === 401 && endpoint !== '/api/auth/login'){
+        sessionStorage.removeItem('gcc_token');
+        localStorage.removeItem('gcc_token');
+        localStorage.removeItem('gcc_user');
+        window.location.href = '/login';
+      }
       let errText = `HTTP ${res.status}: ${res.statusText}`;
       try {
         const errJson = await res.json();
@@ -116,47 +132,64 @@
   }
 
   async function checkAuthSession(){
-    if(!authToken) return false;
+    if(!authToken){
+      authToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || '';
+    }
+    if(!authToken){
+      window.location.href = '/login';
+      return false;
+    }
     try {
       const res = await apiFetch('/api/auth/me');
       if(res && res.authenticated && res.user){
         currentUser = res.user;
+        localStorage.setItem('gcc_user', JSON.stringify(currentUser));
         localStorage.setItem('gcc_auth_user', JSON.stringify(currentUser));
+        if(isViewer()){
+          document.body.classList.add('gcc-viewer-mode');
+        } else {
+          document.body.classList.remove('gcc-viewer-mode');
+        }
         return true;
       }
     } catch(e){
-      // If server is offline but token exists, maintain local session
-      if(currentUser && currentUser.username) return true;
+      if(currentUser && (currentUser.email || currentUser.username)){
+        if(isViewer()){
+          document.body.classList.add('gcc-viewer-mode');
+        } else {
+          document.body.classList.remove('gcc-viewer-mode');
+        }
+        return true;
+      }
+      window.location.href = '/login';
     }
     return false;
   }
 
   async function performLogin(username, password){
     if(!username || !password){
-      throw new Error('Please provide both username and password.');
+      throw new Error('Please provide both email/username and password.');
     }
     try {
       const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ email: username, username, password })
       });
       if(res && res.success){
         authToken = res.token;
         currentUser = res.user;
-        localStorage.setItem('gcc_auth_token', authToken);
-        localStorage.setItem('gcc_auth_user', JSON.stringify(currentUser));
+        sessionStorage.setItem('gcc_token', authToken);
+        localStorage.setItem('gcc_token', authToken);
+        localStorage.setItem('gcc_user', JSON.stringify(currentUser));
+        if(isViewer()){
+          document.body.classList.add('gcc-viewer-mode');
+        } else {
+          document.body.classList.remove('gcc-viewer-mode');
+        }
         return currentUser;
       }
     } catch(err){
-      // Offline fallback: check admin/admin123
-      if(!isBackendConnected && username.toLowerCase() === 'admin' && (password === 'admin123' || (state && state.settings && state.settings.pin && password === state.settings.pin))){
-        authToken = 'gcc_local_session';
-        currentUser = { username: 'admin', name: 'Executive Director', role: 'Administrator' };
-        localStorage.setItem('gcc_auth_token', authToken);
-        localStorage.setItem('gcc_auth_user', JSON.stringify(currentUser));
-        return currentUser;
-      }
       throw err;
     }
   }
@@ -170,10 +203,12 @@
     authToken = '';
     currentUser = null;
     sessionUnlocked = false;
+    sessionStorage.removeItem('gcc_token');
+    localStorage.removeItem('gcc_token');
+    localStorage.removeItem('gcc_user');
     localStorage.removeItem('gcc_auth_token');
     localStorage.removeItem('gcc_auth_user');
-    Toast.info('Logged out successfully.');
-    render();
+    window.location.href = '/login';
   }
 
   function defaultSettings(){
@@ -301,6 +336,7 @@
   let state = null;
   let view = 'overview';
   let sessionUnlocked = false;
+  let activeOverviewKpi = null;
   let filters = {
     register: {company:'', status:'', function:'', owner:'', founderDependency:'', q:'', showHidden:false},
     decisions: {owner:'', founderDependency:'', q:'', showHidden:false},
@@ -1543,15 +1579,16 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;">
                 ${items.map(a=>`
-                  <div class="gcc-arow ${emphClass(a.status)}" data-edit-action="${a.id}" style="border-left-color:${solid};">
+                  <div class="gcc-arow ${emphClass(a.status)}" ${isAdmin()?`data-edit-action="${a.id}"`:''} style="border-left-color:${solid};">
                     <div class="gcc-flag"></div>
                     <div class="gcc-a-co"><span class="gcc-co-tag" style="background:${companyColor(a.company)}22;color:${companyColor(a.company)}">${escapeHtml(a.company)}</span></div>
                     <div class="gcc-a-item" title="${escapeHtml(a.item)}">${escapeHtml(a.item)}</div>
                     <div class="gcc-a-owner">${escapeHtml(a.owner||'—')}</div>
-                    <div class="gcc-a-status" data-quick-status="action" data-item-id="${a.id}" style="background:${soft};color:${solid};">${escapeHtml(a.status)} ${icon('chevronDown')}</div>
+                    <div class="gcc-a-status" ${isAdmin()?`data-quick-status="action" data-item-id="${a.id}" style="cursor:pointer;background:${soft};color:${solid};"`:`style="background:${soft};color:${solid};"`}>${escapeHtml(a.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</div>
+                    ${isAdmin() ? `
                     <div style="text-align:right;">
                       <button class="gcc-btn secondary" style="padding:3px 6px;font-size:10px;" title="Edit action">${icon('edit')}</button>
-                    </div>
+                    </div>` : ''}
                   </div>
                 `).join('')}
               </div>
@@ -1580,19 +1617,71 @@
     }
     const visibleKpis = state.settings.kpis.filter(k=>k.visible);
 
+    // KPI Drilldown Section on Overview
+    let kpiDrilldownHtml = '';
+    if(activeOverviewKpi){
+      const activeKpiObj = visibleKpis.find(k=>k.id === activeOverviewKpi) || state.settings.kpis.find(k=>k.id === activeOverviewKpi) || { id: activeOverviewKpi, label: activeOverviewKpi };
+      const targetStatuses = statusesForMetric(activeOverviewKpi);
+      let kpiItems = state.actions.filter(a=> !a.hidden && targetStatuses.includes(a.status));
+      if(oq){
+        kpiItems = kpiItems.filter(a=> (a.item+a.owner+a.company+a.function).toLowerCase().includes(oq));
+      }
+      const kpiColor = metricColorVar(activeOverviewKpi);
+
+      kpiDrilldownHtml = `
+        <div class="gcc-kpi-drilldown" id="gcc-kpi-drilldown-box" style="border-left: 4px solid ${kpiColor};">
+          <div class="gcc-kpi-drilldown-header">
+            <div class="gcc-kpi-drilldown-title">
+              <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${kpiColor};box-shadow:0 0 8px ${kpiColor};"></span>
+              <span>${escapeHtml(activeKpiObj.label)}</span>
+              <span class="gcc-kpi-drilldown-badge" style="background:${kpiColor}22;color:${kpiColor};">${kpiItems.length} item${kpiItems.length===1?'':'s'}</span>
+            </div>
+            <button class="gcc-kpi-drilldown-close" id="btn-close-kpi-drilldown" title="Clear selected KPI filter">
+              ✕ Close View
+            </button>
+          </div>
+          <div class="gcc-alist">
+            ${kpiItems.length ? kpiItems.map(a=>{
+              const [bSoft, bSolid] = bucketColors(a.status);
+              return `
+              <div class="gcc-arow ${emphClass(a.status)}" ${isAdmin()?`data-edit-action="${a.id}"`:''} style="border-left-color:${bSolid};">
+                <div class="gcc-flag"></div>
+                <div class="gcc-a-co"><span class="gcc-co-tag" style="background:${companyColor(a.company)}22;color:${companyColor(a.company)}">${escapeHtml(a.company)}</span></div>
+                <div class="gcc-a-item" title="${escapeHtml(a.item)}">
+                  <strong>${escapeHtml(a.item)}</strong>
+                  ${a.function ? `<span style="font-size:11.5px;color:var(--text-dim);margin-left:6px;">· ${escapeHtml(a.function)}</span>` : ''}
+                </div>
+                <div class="gcc-a-owner">${escapeHtml(a.owner||'—')}</div>
+                <div class="gcc-a-status" ${isAdmin()?`data-quick-status="action" data-item-id="${a.id}" style="cursor:pointer;background:${bSoft};color:${bSolid};"`:`style="background:${bSoft};color:${bSolid};"`}>${escapeHtml(a.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</div>
+                ${isAdmin() ? `
+                <div style="text-align:right;">
+                  <button class="gcc-btn secondary" style="padding:3px 6px;font-size:10px;" title="Edit action">${icon('edit')}</button>
+                </div>` : ''}
+              </div>`;
+            }).join('') : `<div class="gcc-empty" style="padding:18px;">No action items matching "${activeKpiObj.label}".</div>`}
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="gcc-filters">
         <input id="f-overview-q" placeholder="Search across all portfolio items…" value="${escapeHtml(filters.overview.q)}" style="flex:1;min-width:240px;"/>
       </div>
 
       <div class="gcc-kpis" style="grid-template-columns:repeat(${Math.max(visibleKpis.length,1)},1fr)">
-        ${visibleKpis.length ? visibleKpis.map(k=>`
-          <div class="gcc-kpi" data-kpi-id="${escapeHtml(k.id)}" title="Click to filter spotlight list">
+        ${visibleKpis.length ? visibleKpis.map(k=>{
+          const isActive = activeOverviewKpi === k.id;
+          const kColor = metricColorVar(k.id);
+          return `
+          <div class="gcc-kpi ${isActive ? 'active' : ''}" data-kpi-id="${escapeHtml(k.id)}" style="--kpi-color:${kColor};" title="Click to view ${escapeHtml(k.label)} items">
             <div class="gcc-kpi-label">${escapeHtml(k.label)}</div>
-            <div class="gcc-kpi-val" style="color:${metricColorVar(k.id)}">${metricValue(k.id)}</div>
+            <div class="gcc-kpi-val" style="color:${kColor}">${metricValue(k.id)}</div>
           </div>
-        `).join('') : '<div class="gcc-empty">No KPI cards active — configure in Settings.</div>'}
+        `;}).join('') : '<div class="gcc-empty">No KPI cards active — configure in Settings.</div>'}
       </div>
+
+      ${kpiDrilldownHtml}
 
       <div id="overview-dynamic-content">
         ${os.companyHealth ? `
@@ -1623,15 +1712,16 @@
           ${founderReviewItems.length ? founderReviewItems.map(a=>{
             const [soft, solid] = bucketColors(a.status);
             return `
-            <div class="gcc-arow ${emphClass(a.status)}" data-edit-action="${a.id}" style="border-left-color:${solid};">
+            <div class="gcc-arow ${emphClass(a.status)}" ${isAdmin()?`data-edit-action="${a.id}"`:''} style="border-left-color:${solid};">
               <div class="gcc-flag"></div>
               <div class="gcc-a-co"><span class="gcc-co-tag" style="background:${companyColor(a.company)}22;color:${companyColor(a.company)}">${escapeHtml(a.company)}</span></div>
               <div class="gcc-a-item" title="${escapeHtml(a.item)}">${escapeHtml(a.item)}</div>
               <div class="gcc-a-owner">${escapeHtml(a.owner||'—')}</div>
-              <div class="gcc-a-status" data-quick-status="action" data-item-id="${a.id}" style="background:${soft};color:${solid};">${escapeHtml(a.status)} ${icon('chevronDown')}</div>
+              <div class="gcc-a-status" ${isAdmin()?`data-quick-status="action" data-item-id="${a.id}" style="cursor:pointer;background:${soft};color:${solid};"`:`style="background:${soft};color:${solid};"`}>${escapeHtml(a.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</div>
+              ${isAdmin() ? `
               <div style="text-align:right;">
                 <button class="gcc-btn secondary" style="padding:3px 6px;font-size:10px;" title="Edit action">${icon('edit')}</button>
-              </div>
+              </div>` : ''}
             </div>`;
           }).join('') : '<div class="gcc-empty">No completed items pending founder review.</div>'}
         </div>` : ''}
@@ -1639,7 +1729,7 @@
         ${os.needsAttention ? `
         <div class="gcc-h" id="highlighted-section">
           Spotlight Action Items
-          <button class="gcc-btn secondary" id="edit-spotlight" style="padding:3px 8px;font-size:11px;margin-left:auto;">${icon('settings')} Edit</button>
+          ${isAdmin() ? `<button class="gcc-btn secondary" id="edit-spotlight" style="padding:3px 8px;font-size:11px;margin-left:auto;">${icon('settings')} Edit</button>` : ''}
         </div>
         ${renderSpotlightGroups(spotItems)}` : ''}
 
@@ -1649,19 +1739,33 @@
           ${decisionItems.length ? decisionItems.map(d=>{
             const [soft, solid] = bucketColors(d.status);
             return `
-            <div class="gcc-dqrow ${emphClass(d.status)}" data-edit-decision="${d.id}" style="border-left:3px solid ${solid};">
+            <div class="gcc-dqrow ${emphClass(d.status)}" ${isAdmin()?`data-edit-decision="${d.id}"`:''} style="border-left:3px solid ${solid};">
               <div class="gcc-dq-decision">${escapeHtml(d.decision)}</div>
               <div class="gcc-dq-owner">${escapeHtml(d.owner||'—')}</div>
               <div class="gcc-dq-impact" title="${escapeHtml(d.impact||'')}">${escapeHtml(d.impact||'—')}</div>
-              <div class="gcc-a-status" data-quick-status="decision" data-item-id="${d.id}" style="background:${soft};color:${solid};">${escapeHtml(d.status)} ${icon('chevronDown')}</div>
+              <div class="gcc-a-status" ${isAdmin()?`data-quick-status="decision" data-item-id="${d.id}" style="cursor:pointer;background:${soft};color:${solid};"`:`style="background:${soft};color:${solid};"`}>${escapeHtml(d.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</div>
+              ${isAdmin() ? `
               <div style="text-align:right;">
                 <button class="gcc-btn secondary" style="padding:3px 6px;font-size:10px;" title="Edit decision">${icon('edit')}</button>
-              </div>
+              </div>` : ''}
             </div>`;
           }).join('') : '<div class="gcc-empty">All decisions resolved.</div>'}
         </div>` : ''}
       </div>
     `;
+  }
+
+  function allAvailableMetrics(){
+    const base = [
+      {id:'bucket:attention', label:'Needs attention'},
+      {id:'bucket:hold', label:'On hold'},
+      {id:'bucket:progress', label:'In progress'},
+      {id:'bucket:done', label:'Done'},
+      {id:'bucket:future', label:'Future'},
+      {id:'total', label:'Total items'}
+    ];
+    statusesList().forEach(s => base.push({id:'status:'+s, label:s+' (exact status)'}));
+    return base;
   }
 
   function renderRegister(){
@@ -1691,6 +1795,23 @@
     const founderDeps = [...new Set(state.actions.map(a=>(a.founderDependency||'').trim()).filter(Boolean))].sort();
     const visibleCols = state.settings.columns.filter(c=>c.visible);
     const hasActiveFilters = Boolean(f.company || f.status || f.function || f.owner || f.founderDependency || f.q || f.showHidden);
+
+    const cellForAction = (a, c) => {
+      const soft = bucketColors(a.status)[0];
+      const solid = bucketColors(a.status)[1];
+      if(c.key === 'company') return `<td><span class="gcc-co-tag" style="background:${companyColor(a.company)}22;color:${companyColor(a.company)}">${escapeHtml(a.company)}</span></td>`;
+      if(c.key === 'status') return `<td><span class="gcc-a-status" ${isAdmin()?`data-quick-status="action" data-item-id="${a.id}" style="cursor:pointer;background:${soft};color:${solid};"`:`style="background:${soft};color:${solid};"`}>${escapeHtml(a.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</span></td>`;
+      if(c.key === 'owner') return `<td class="owner">${escapeHtml(a.owner||'—')}</td>`;
+      if(c.key === 'founderDependency') return `<td>${escapeHtml(a.founderDependency||'—')}</td>`;
+      if(c.key === 'comments') return `<td style="color:var(--text-muted);font-size:11.5px;">${escapeHtml(a.comments||'—')}</td>`;
+      if(c.key === 'item') return `<td style="font-weight:500;">${escapeHtml(a.item)}</td>`;
+      if(c.key === 'function') return `<td>${escapeHtml(a.function||'—')}</td>`;
+      const val = (a.custom && a.custom[c.key] !== undefined) ? a.custom[c.key] : (a[c.key] !== undefined ? a[c.key] : '');
+      if(!isAdmin()){
+        return `<td>${escapeHtml(val || '—')}</td>`;
+      }
+      return `<td><input class="gcc-inline-edit" data-custom-edit="action:${a.id}:${c.key}" value="${escapeHtml(val)}" placeholder="—"/></td>`;
+    };
 
     return `
       <div class="gcc-filters" style="flex-wrap:wrap;gap:8px;align-items:center;">
@@ -1735,9 +1856,10 @@
         <button class="gcc-btn secondary" id="btn-reset-register-filters" title="Reset all filters to default" style="padding:5px 10px;font-size:11.5px;display:inline-flex;align-items:center;gap:4px;${hasActiveFilters?'border-color:var(--progress);color:var(--progress);':''}">
           ${icon('refresh')} Reset Filters
         </button>
+        ${isAdmin() ? `
         <button class="gcc-btn" id="btn-open-add-action" style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:5px 12px;font-size:12px;">
           ${icon('plus')} Add Action Item
-        </button>
+        </button>` : ''}
       </div>
 
       <div class="gcc-table-wrap">
@@ -1745,29 +1867,21 @@
           <thead>
             <tr>
               ${visibleCols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}
-              <th style="width:72px;text-align:right;">Actions</th>
+              ${isAdmin() ? `<th style="width:72px;text-align:right;">Actions</th>` : ''}
             </tr>
           </thead>
           <tbody id="register-tbody">
             ${items.map(a=>{
-              const [soft, solid] = bucketColors(a.status);
               return `
               <tr data-row-id="${a.id}" class="${emphClass(a.status)}">
-                ${visibleCols.map(c=>{
-                  if(c.key==='company') return `<td><span class="gcc-co-tag" style="background:${companyColor(a.company)}22;color:${companyColor(a.company)}">${escapeHtml(a.company)}</span></td>`;
-                  if(c.key==='status') return `<td><span class="gcc-a-status" data-quick-status="action" data-item-id="${a.id}" style="background:${soft};color:${solid};">${escapeHtml(a.status)} ${icon('chevronDown')}</span></td>`;
-                  if(c.key==='owner') return `<td class="owner">${escapeHtml(a.owner||'—')}</td>`;
-                  if(c.key==='founderDependency') return `<td>${escapeHtml(a.founderDependency||'—')}</td>`;
-                  if(c.key==='comments') return `<td style="color:var(--text-muted);font-size:11.5px;">${escapeHtml(a.comments||'—')}</td>`;
-                  if(c.key==='item') return `<td style="font-weight:500;">${escapeHtml(a.item)}</td>`;
-                  return `<td>${escapeHtml(a[c.key]||'—')}</td>`;
-                }).join('')}
+                ${visibleCols.map(c=>cellForAction(a, c)).join('')}
+                ${isAdmin() ? `
                 <td style="text-align:right;white-space:nowrap;">
                   <button class="gcc-btn secondary" data-edit-action="${a.id}" title="Edit item" style="padding:3px 6px;font-size:10px;">${icon('edit')}</button>
                   <button class="gcc-btn secondary" data-hide-action="${a.id}" title="${a.hidden?'Unhide':'Hide'} row" style="padding:3px 6px;font-size:10px;">${a.hidden?icon('eye'):icon('eyeOff')}</button>
-                </td>
+                </td>` : ''}
               </tr>`;
-            }).join('') || '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No matching action items found.</td></tr>'}
+            }).join('') || '<tr><td colspan="15" style="text-align:center;padding:30px;color:var(--text-muted);">No matching action items found.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1788,6 +1902,23 @@
     const owners = [...new Set(state.decisions.map(d=>d.owner).filter(Boolean))].sort();
     const visibleCols = state.settings.decisionColumns.filter(c=>c.visible);
 
+    const cellForDecision = (d, c) => {
+      const soft = bucketColors(d.status)[0];
+      const solid = bucketColors(d.status)[1];
+      if(c.key === 'decision') return `<td style="font-weight:600;color:var(--table-text);">${escapeHtml(d.decision)}</td>`;
+      if(c.key === 'owner') return `<td class="owner">${escapeHtml(d.owner||'—')}</td>`;
+      if(c.key === 'status') return `<td><span class="gcc-a-status" ${isAdmin()?`data-quick-status="decision" data-item-id="${d.id}" style="cursor:pointer;background:${soft};color:${solid};"`:`style="background:${soft};color:${solid};"`}>${escapeHtml(d.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</span></td>`;
+      if(c.key === 'founderDependency') return `<td>${escapeHtml(d.founderDependency||'—')}</td>`;
+      if(c.key === 'impact') return `<td style="color:var(--attention);font-size:12px;">${escapeHtml(d.impact||'—')}</td>`;
+      if(c.key === 'deadline') return `<td class="owner">${escapeHtml(d.deadline||'—')}</td>`;
+      if(c.key === 'nextReview') return `<td class="owner">${escapeHtml(d.nextReview||'—')}</td>`;
+      const val = (d.custom && d.custom[c.key] !== undefined) ? d.custom[c.key] : (d[c.key] !== undefined ? d[c.key] : '');
+      if(!isAdmin()){
+        return `<td>${escapeHtml(val || '—')}</td>`;
+      }
+      return `<td><input class="gcc-inline-edit" data-custom-edit="decision:${d.id}:${c.key}" value="${escapeHtml(val)}" placeholder="—"/></td>`;
+    };
+
     return `
       <div class="gcc-filters">
         <select id="f-decisions-owner">
@@ -1796,7 +1927,7 @@
         </select>
         <input id="f-decisions-q" placeholder="Filter decisions or impact…" value="${escapeHtml(f.q)}" style="flex:1;min-width:200px;"/>
         <label class="gcc-checkline" style="margin:0;"><input type="checkbox" id="f-decisions-show-hidden" ${f.showHidden?'checked':''}/> Show hidden</label>
-        <button class="gcc-btn" id="btn-open-add-decision" style="margin-left:auto;">${icon('plus')} Add Decision</button>
+        ${isAdmin() ? `<button class="gcc-btn" id="btn-open-add-decision" style="margin-left:auto;">${icon('plus')} Add Decision</button>` : ''}
       </div>
 
       <div class="gcc-table-wrap">
@@ -1804,26 +1935,21 @@
           <thead>
             <tr>
               ${visibleCols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}
-              <th style="width:72px;text-align:right;">Actions</th>
+              ${isAdmin() ? `<th style="width:72px;text-align:right;">Actions</th>` : ''}
             </tr>
           </thead>
           <tbody id="decisions-tbody">
             ${items.map(d=>{
-              const [soft, solid] = bucketColors(d.status);
               return `
               <tr data-row-id="${d.id}" class="${emphClass(d.status)}">
-                ${visibleCols.map(c=>{
-                  if(c.key==='status') return `<td><span class="gcc-a-status" data-quick-status="decision" data-item-id="${d.id}" style="background:${soft};color:${solid};">${escapeHtml(d.status)} ${icon('chevronDown')}</span></td>`;
-                  if(c.key==='decision') return `<td style="font-weight:600;color:var(--table-text);">${escapeHtml(d.decision)}</td>`;
-                  if(c.key==='impact') return `<td style="color:var(--attention);font-size:12px;">${escapeHtml(d.impact||'—')}</td>`;
-                  return `<td>${escapeHtml(d[c.key]||'—')}</td>`;
-                }).join('')}
+                ${visibleCols.map(c=>cellForDecision(d, c)).join('')}
+                ${isAdmin() ? `
                 <td style="text-align:right;white-space:nowrap;">
                   <button class="gcc-btn secondary" data-edit-decision="${d.id}" title="Edit decision" style="padding:3px 6px;font-size:10px;">${icon('edit')}</button>
                   <button class="gcc-btn secondary" data-hide-decision="${d.id}" title="${d.hidden?'Unhide':'Hide'} row" style="padding:3px 6px;font-size:10px;">${d.hidden?icon('eye'):icon('eyeOff')}</button>
-                </td>
+                </td>` : ''}
               </tr>`;
-            }).join('') || '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No decisions found.</td></tr>'}
+            }).join('') || '<tr><td colspan="15" style="text-align:center;padding:30px;color:var(--text-muted);">No decisions found.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1845,7 +1971,7 @@
     return `
       <div class="gcc-filters">
         <input id="f-priorities-q" placeholder="Filter priorities and strategic focus areas…" value="${escapeHtml(filters.priorities.q)}" style="flex:1;"/>
-        <button class="gcc-btn" id="btn-open-add-priority">${icon('plus')} Add Priority</button>
+        ${isAdmin() ? `<button class="gcc-btn" id="btn-open-add-priority">${icon('plus')} Add Priority</button>` : ''}
       </div>
       <div id="priorities-container">
         ${Object.keys(groups).map(g=>`
@@ -1855,7 +1981,7 @@
               ${escapeHtml(g)}
             </div>
             ${groups[g].map(p=>`
-              <div class="gcc-prio-item" data-edit-priority="${p.id}">
+              <div class="gcc-prio-item" ${isAdmin()?`data-edit-priority="${p.id}"`:''}>
                 <div>
                   <div style="font-weight:600;color:var(--table-text);margin-bottom:3px;">
                     <span style="font-family:var(--font-mono);color:var(--progress);margin-right:6px;">${escapeHtml(p.priority||'1.0')}</span>
@@ -1864,9 +1990,10 @@
                   <div class="gcc-prio-why">${escapeHtml(p.why||'')}</div>
                 </div>
                 <div class="gcc-prio-horizon">${escapeHtml(p.horizon||'')}</div>
+                ${isAdmin() ? `
                 <div style="text-align:right;">
                   <button class="gcc-btn secondary" style="padding:3px 6px;font-size:10px;" title="Edit priority">${icon('edit')}</button>
-                </div>
+                </div>` : ''}
               </div>
             `).join('')}
           </div>
@@ -1874,6 +2001,7 @@
       </div>
     `;
   }
+
 
   function formatBytes(bytes, decimals = 1){
     if(!+bytes) return '0 B';
@@ -2175,74 +2303,233 @@
 
   function renderSettings(){
     const s = state.settings;
+    const emphOptions = ['normal','hi','dim'];
+    const emphLabelMap = {normal:'Normal', hi:'Highlight', dim:'Mute'};
     return `
       <div class="gcc-h">Appearance & System Settings</div>
       <div class="gcc-data-grid">
 
         <div class="gcc-card">
           <h3>Appearance — Text Colors</h3>
-          <p>Configure typography colors across headers and data cells.</p>
-          <div class="gcc-swatch-row"><span class="gcc-swatch-label">Body text</span><input type="color" data-color-key="text" value="${s.colors.text}"/></div>
-          <div class="gcc-swatch-row"><span class="gcc-swatch-label">Muted / Secondary text</span><input type="color" data-color-key="muted" value="${s.colors.muted}"/></div>
-          <div class="gcc-swatch-row"><span class="gcc-swatch-label">Table cell text</span><input type="color" data-color-key="tableText" value="${s.colors.tableText}"/></div>
-          <div class="gcc-swatch-row"><span class="gcc-swatch-label">Table header text</span><input type="color" data-color-key="tableHeaderText" value="${s.colors.tableHeaderText}"/></div>
+          <p>Configure typography colors across headers and data cells so nothing is unreadable against your theme.</p>
+          <div class="gcc-swatch-row">
+            <span class="gcc-swatch-label">Body text</span>
+            <input type="color" data-color-key="text" value="${s.colors.text||'#F0F3F6'}"/>
+          </div>
+          <div class="gcc-swatch-row">
+            <span class="gcc-swatch-label">Muted / Secondary text</span>
+            <input type="color" data-color-key="muted" value="${s.colors.muted||'#8B949E'}"/>
+          </div>
+          <div class="gcc-swatch-row">
+            <span class="gcc-swatch-label">Table cell text (Function, Item, Decision…)</span>
+            <input type="color" data-color-key="tableText" value="${s.colors.tableText||'#F0F3F6'}"/>
+          </div>
+          <div class="gcc-swatch-row">
+            <span class="gcc-swatch-label">Table header text</span>
+            <input type="color" data-color-key="tableHeaderText" value="${s.colors.tableHeaderText||'#8B949E'}"/>
+          </div>
+          <div class="gcc-swatch-row">
+            <span class="gcc-swatch-label">Section labels (small caps headers)</span>
+            <input type="color" data-color-key="labelText" value="${s.colors.labelText||'#8B949E'}"/>
+          </div>
         </div>
 
         <div class="gcc-card">
           <h3>Appearance — Status Colors</h3>
-          <p>Drives pulse bars, badges, and attention spotlight items.</p>
-          ${['attention','progress','done','hold','future'].map(k=>`
+          <p>Drives every status badge, pulse bar, and highlight across the whole dashboard.</p>
+          ${[
+            {key:'attention', label:'Attention (Blocked / Delayed)'},
+            {key:'progress', label:'Progress (WIP / To Start)'},
+            {key:'done', label:'Done (Done)'},
+            {key:'hold', label:'Hold (On Hold)'},
+            {key:'future', label:'Future (Future)'}
+          ].map(k=>`
             <div class="gcc-swatch-row">
-              <span class="gcc-swatch-label">${k[0].toUpperCase()+k.slice(1)}</span>
-              <input type="color" data-color-key="${k}" value="${s.colors[k]}"/>
+              <span class="gcc-swatch-label">${k.label}</span>
+              <input type="color" data-color-key="${k.key}" value="${s.colors[k.key]||'#58A6FF'}"/>
             </div>
           `).join('')}
         </div>
 
         <div class="gcc-card">
-          <h3>Company Color Branding</h3>
-          <p>Branding badges for portfolio companies.</p>
+          <h3>Appearance — Company Colors</h3>
+          <p>Used for the tag next to each company's name in Overview and the Register.</p>
           ${companiesList().map(c=>`
             <div class="gcc-swatch-row">
-              <span class="gcc-swatch-label">${c.name}</span>
-              <input type="color" data-company-key="${c.id}" value="${companyColor(c.id)}"/>
+              <span class="gcc-swatch-label">${escapeHtml(c.name)}</span>
+              <input type="color" data-company-key="${escapeHtml(c.id)}" value="${companyColor(c.id)}"/>
             </div>
           `).join('')}
         </div>
 
         <div class="gcc-card">
-          <h3>Spotlight Status Filter</h3>
-          <p>Select which statuses appear in the Overview spotlight list.</p>
-          <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+          <h3>Companies</h3>
+          <p>Add or remove companies in your portfolio. Removing one won't delete existing action items tagged with it, but it drops off the Overview health list and dropdowns.</p>
+          <div id="company-list">
+            ${s.companies.map((c,i)=>`
+              <div class="gcc-col-row" data-idx="${i}">
+                <label style="flex:1;">${escapeHtml(c.name)}</label>
+                <div class="gcc-col-btns">
+                  <button class="gcc-col-remove" data-company-remove="${i}" title="Remove this company">✕</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="gcc-row-flex" style="margin-top:12px;">
+            <button class="gcc-btn secondary" id="btn-add-company">+ Add company</button>
+          </div>
+        </div>
+
+        <div class="gcc-card">
+          <h3>Statuses</h3>
+          <p>Add or remove statuses available across the dashboard. Each status has a bucket (Attention, Hold, In Progress, Done, Future).</p>
+          <div id="status-list">
+            ${s.statuses.map((st,i)=>`
+              <div class="gcc-col-row" data-idx="${i}">
+                <label style="flex:1;">${escapeHtml(st)} <span class="gcc-lock-badge">${escapeHtml(s.statusBuckets[st]||'future')}</span></label>
+                <div class="gcc-col-btns">
+                  <button class="gcc-col-remove" data-status-remove="${i}" title="Remove this status">✕</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="gcc-row-flex" style="margin-top:12px;">
+            <button class="gcc-btn secondary" id="btn-add-status">+ Add status</button>
+          </div>
+        </div>
+
+        <div class="gcc-card">
+          <h3>Register Columns</h3>
+          <p>Choose which fields show in the Action Register table, in what order, or add a brand-new custom field (editable right in the table).</p>
+          <div id="col-list">
+            ${s.columns.map((c,i)=>`
+              <div class="gcc-col-row" data-idx="${i}">
+                <label><input type="checkbox" data-col-visible="${i}" ${c.visible?'checked':''}/> ${escapeHtml(c.label)}</label>
+                <div class="gcc-col-btns">
+                  <button class="gcc-col-remove" data-col-remove="${i}" title="Remove this column">✕</button>
+                  <button class="gcc-icon-btn" data-col-up="${i}" ${i===0?'disabled':''} title="Move up">↑</button>
+                  <button class="gcc-icon-btn" data-col-down="${i}" ${i===s.columns.length-1?'disabled':''} title="Move down">↓</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="gcc-row-flex" style="margin-top:12px;">
+            <button class="gcc-btn secondary" id="btn-add-col-register">+ Add column</button>
+          </div>
+        </div>
+
+        <div class="gcc-card">
+          <h3>Decision Queue Columns</h3>
+          <p>Choose which fields show in the Decisions tab — hide fields you don't need or add custom columns.</p>
+          <div id="dcol-list">
+            ${s.decisionColumns.map((c,i)=>`
+              <div class="gcc-col-row" data-idx="${i}">
+                <label><input type="checkbox" data-dcol-visible="${i}" ${c.visible?'checked':''}/> ${escapeHtml(c.label)}</label>
+                <div class="gcc-col-btns">
+                  <button class="gcc-col-remove" data-dcol-remove="${i}" title="Remove this column">✕</button>
+                  <button class="gcc-icon-btn" data-dcol-up="${i}" ${i===0?'disabled':''} title="Move up">↑</button>
+                  <button class="gcc-icon-btn" data-dcol-down="${i}" ${i===s.decisionColumns.length-1?'disabled':''} title="Move down">↓</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="gcc-row-flex" style="margin-top:12px;">
+            <button class="gcc-btn secondary" id="btn-add-col-decisions">+ Add column</button>
+          </div>
+        </div>
+
+        <div class="gcc-card">
+          <h3>Overview KPI Cards</h3>
+          <p>Pick which metrics show at the top of Overview, and in what order — swap the set every review.</p>
+          <div id="kpi-list">
+            ${s.kpis.map((k,i)=>`
+              <div class="gcc-col-row" data-idx="${i}">
+                <label style="flex:1;">${escapeHtml(k.label)}</label>
+                <div class="gcc-col-btns">
+                  <button class="gcc-col-remove" data-kpi-remove="${i}" title="Remove this card">✕</button>
+                  <button class="gcc-icon-btn" data-kpi-up="${i}" ${i===0?'disabled':''} title="Move up">↑</button>
+                  <button class="gcc-icon-btn" data-kpi-down="${i}" ${i===s.kpis.length-1?'disabled':''} title="Move down">↓</button>
+                </div>
+              </div>
+            `).join('') || '<div class="gcc-empty" style="padding:12px;">No KPI cards yet.</div>'}
+          </div>
+          <div class="gcc-row-flex" style="margin-top:12px;">
+            <select id="kpi-add-select" style="flex:1;min-width:180px;">
+              ${allAvailableMetrics().filter(m=>!s.kpis.some(k=>k.id===m.id)).map(m=>`<option value="${escapeHtml(m.id)}" data-label="${escapeHtml(m.label)}">${escapeHtml(m.label)}</option>`).join('') || '<option value="">All metrics already added</option>'}
+            </select>
+            <button class="gcc-btn secondary" id="btn-add-kpi">+ Add card</button>
+          </div>
+        </div>
+
+        <div class="gcc-card">
+          <h3>Tabs</h3>
+          <p>Reorder, show/hide, or manage tabs in the navigation bar. Settings can't be hidden so you won't get locked out.</p>
+          <div id="tab-order-list">
+            ${s.tabs.map((t,i)=>`
+              <div class="gcc-order-row" data-idx="${i}">
+                <label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" data-tab-visible="${i}" ${t.visible?'checked':''} ${t.key==='settings'?'disabled':''}/>
+                  ${escapeHtml(t.label)}
+                </label>
+                <div class="gcc-col-btns">
+                  <button class="gcc-icon-btn" data-tab-up="${i}" ${i===0?'disabled':''} title="Move up">↑</button>
+                  <button class="gcc-icon-btn" data-tab-down="${i}" ${i===s.tabs.length-1?'disabled':''} title="Move down">↓</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <p style="margin-top:10px;font-size:11.5px;color:var(--text-dim);">Unchecking a tab hides it from the top bar without deleting any data. You can re-enable it anytime.</p>
+        </div>
+
+        <div class="gcc-card">
+          <h3>Overview: Highlighted Action Items</h3>
+          <p>Pick which statuses show in Overview's "Spotlight Action Items" list — Blocked, Delayed, and On Hold by default.</p>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
             ${statusesList().map(st=>`
               <label class="gcc-checkline">
-                <input type="checkbox" data-spotlight-status="${st}" ${(s.spotlightStatuses||[]).includes(st)?'checked':''}/>
-                ${st}
+                <input type="checkbox" data-spotlight-status="${escapeHtml(st)}" ${(s.spotlightStatuses||[]).includes(st)?'checked':''}/>
+                ${escapeHtml(st)}
               </label>
             `).join('')}
           </div>
         </div>
 
         <div class="gcc-card">
-          <h3>Edit Access Protection <span class="gcc-status-pill">${s.pin ? 'PIN Active' : 'Unlocked'}</span></h3>
-          <p>Set a PIN to require authentication before opening Data or Settings tabs.</p>
+          <h3>Status Emphasis</h3>
+          <p>Make certain statuses stand out (Highlight glow) or fade back (Mute) in the Register and Overview lists.</p>
+          ${statusesList().map(st=>`
+            <div class="gcc-emph-row">
+              <span class="gcc-swatch-label">${escapeHtml(st)}</span>
+              <div class="gcc-seg" data-emph-status="${escapeHtml(st)}">
+                ${emphOptions.map(o=>`<button data-emph-val="${o}" class="${(s.emphasis[st]||'normal')===o?'on':''}">${emphLabelMap[o]}</button>`).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="gcc-card">
+          <h3>Edit Access Protection <span class="gcc-lock-badge">${s.pin ? 'PIN ACTIVE' : 'UNLOCKED'}</span></h3>
+          <p>Set a PIN to require passcode authentication before opening Data or Settings tabs.</p>
           ${s.pin ? `
             <div class="gcc-form">
-              <label>Current PIN</label><input type="password" id="pin-current" placeholder="Current PIN"/>
-              <label>New PIN (leave blank to remove)</label><input type="password" id="pin-new" placeholder="New PIN"/>
+              <label>Current PIN (required to change or remove)</label>
+              <input type="password" id="pin-current" placeholder="Enter current PIN"/>
+              <label>New PIN (leave blank to remove protection)</label>
+              <input type="password" id="pin-new" placeholder="New PIN"/>
               <div class="gcc-row-flex"><button class="gcc-btn" id="btn-set-pin">Save PIN</button></div>
             </div>
           ` : `
             <div class="gcc-form">
-              <label>Set PIN</label><input type="password" id="pin-new" placeholder="Choose a PIN"/>
+              <label>Set Access PIN</label>
+              <input type="password" id="pin-new" placeholder="Choose a PIN"/>
               <div class="gcc-row-flex"><button class="gcc-btn" id="btn-set-pin">Set PIN</button></div>
             </div>
           `}
         </div>
 
         <div class="gcc-card">
-          <h3>Reset Theme</h3>
-          <p>Restore default color theme and appearance without altering data.</p>
+          <h3>Reset Theme & Settings</h3>
+          <p>Restore default colors, columns, KPI cards, tabs, and status emphasis. Doesn't touch your action items, decisions, or PIN.</p>
           <div class="gcc-row-flex"><button class="gcc-btn secondary" id="btn-reset-settings">Reset Appearance</button></div>
         </div>
 
@@ -2554,14 +2841,27 @@ function onFormSubmit(e) {
   // ==========================================================================
   function render(){
     if(!currentUser){
-      app.innerHTML = renderLogin();
-      wireLogin();
+      window.location.href = '/login';
       return;
     }
 
-    if(!state.settings.tabs.some(t=>t.key===view && t.visible)){
-      const firstVisible = state.settings.tabs.find(t=>t.visible);
+    const allTabs = (state && state.settings && state.settings.tabs) || [];
+    let visibleTabs = [];
+    if(isAdmin()){
+      visibleTabs = allTabs.filter(t => t.visible);
+    } else {
+      // For regular user/viewer: hide data, settings, webhooks ALWAYS
+      const restricted = ['data', 'settings', 'webhooks'];
+      visibleTabs = allTabs.filter(t => t.visible && !restricted.includes(t.key));
+    }
+
+    if(!visibleTabs.some(t=>t.key===view)){
+      const firstVisible = visibleTabs[0];
       view = firstVisible ? firstVisible.key : 'overview';
+    }
+
+    if(isViewer() && ['data', 'settings', 'webhooks'].includes(view)){
+      view = 'overview';
     }
 
     const lastSyncTimeStr = state.settings.googleSheets.lastSyncTime ? new Date(state.settings.googleSheets.lastSyncTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Not synced yet';
@@ -2570,7 +2870,7 @@ function onFormSubmit(e) {
       <div class="gcc-top">
         <div>
           <div class="gcc-eyebrow">
-            Gamma Group · Executive Control
+            Gamma Group · ${isAdmin() ? 'Executive Control (Admin)' : 'Portfolio Command Center (Viewer)'}
             <span class="gcc-status-pill" id="top-status-pill">
               <span class="gcc-status-dot ${isSyncingSheets ? 'syncing' : (isBackendConnected ? '' : 'offline')}"></span>
               <span>${isSyncingSheets ? 'Syncing Sheets…' : (isBackendConnected ? 'Backend Live' : 'Standalone Mode')}</span>
@@ -2585,19 +2885,25 @@ function onFormSubmit(e) {
         </div>
         <div class="gcc-top-actions">
           <div class="gcc-user-pill">
-            <div class="gcc-user-avatar" title="${escapeHtml(currentUser.role || 'Admin')}">${escapeHtml((currentUser.name || currentUser.username || 'A')[0].toUpperCase())}</div>
-            <span style="font-weight:600;">${escapeHtml(currentUser.name || currentUser.username)}</span>
+            <div class="gcc-user-avatar" style="background:${isAdmin()?'linear-gradient(135deg,#6366f1,#8b5cf6)':'linear-gradient(135deg,#06b6d4,#3b82f6)'};" title="${escapeHtml(currentUser.role || 'Viewer')}">${escapeHtml((currentUser.name || currentUser.email || currentUser.username || 'U')[0].toUpperCase())}</div>
+            <span style="font-weight:600;">${escapeHtml(currentUser.name || currentUser.email || currentUser.username)}</span>
+            <span class="gcc-status-pill" style="font-size:10.5px;text-transform:uppercase;background:${isAdmin()?'rgba(99,102,241,0.2)':'rgba(6,182,212,0.2)'};color:${isAdmin()?'#a5b4fc':'#67e8f9'};">${escapeHtml(currentUser.role || 'viewer')}</span>
+            ${isAdmin() ? `
+              <a href="/admin" class="gcc-btn secondary" style="padding:4px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                ${icon('settings')} Admin Panel
+              </a>
+            ` : ''}
             <button class="gcc-btn-logout" id="btn-gcc-logout" title="Log out of Command Center">
               ${icon('logOut')} Logout
             </button>
           </div>
-          ${isBackendConnected ? `
+          ${isBackendConnected && isAdmin() ? `
             <button class="gcc-btn secondary" id="btn-top-sync" title="Instant Google Sheets Sync">
               ${isSyncingSheets ? `${icon('refresh', 'gcc-svg-spin')} Syncing…` : `${icon('cloud')} Sync Sheets`}
             </button>
           ` : ''}
           <div class="gcc-nav" id="gcc-nav">
-            ${state.settings.tabs.filter(t=>t.visible).map(t=>`
+            ${visibleTabs.map(t=>`
               <button data-view="${t.key}" class="${view===t.key?'active':''}">${t.label}${(t.key==='data'||t.key==='settings')&&editingLocked()?` <span style="display:inline-flex;vertical-align:-2px;margin-left:3px;">${icon('lock')}</span>`:''}</button>
             `).join('')}
           </div>
@@ -2634,9 +2940,9 @@ function onFormSubmit(e) {
     if(view==='register') v.innerHTML = renderRegister();
     if(view==='decisions') v.innerHTML = renderDecisions();
     if(view==='priorities') v.innerHTML = renderPriorities();
-    if(view==='data') v.innerHTML = renderData();
-    if(view==='webhooks') v.innerHTML = renderWebhooks();
-    if(view==='settings') v.innerHTML = renderSettings();
+    if(view==='data' && isAdmin()) v.innerHTML = renderData();
+    if(view==='webhooks' && isAdmin()) v.innerHTML = renderWebhooks();
+    if(view==='settings' && isAdmin()) v.innerHTML = renderSettings();
     wireView();
 
     if(jumpTarget && ((jumpTarget.type==='action' && view==='register') || (jumpTarget.type==='decision' && view==='decisions'))){
@@ -2651,6 +2957,10 @@ function onFormSubmit(e) {
   }
 
   function wireView(){
+    if(!isAdmin()){
+      // Viewer mode: no editing permissions
+      return;
+    }
     // Universal Quick Status Picker Trigger
     document.querySelectorAll('[data-quick-status]').forEach(badge=>{
       badge.onclick = (e)=>{
@@ -2794,16 +3104,28 @@ function onFormSubmit(e) {
       }
 
       document.querySelectorAll('[data-kpi-id]').forEach(card=>{
-        card.onclick = async ()=>{
+        card.onclick = ()=>{
           const id = card.dataset.kpiId;
-          const targetStatuses = statusesForMetric(id);
-          if(!targetStatuses.length) return;
-          state.settings.spotlightStatuses = targetStatuses;
-          if(!state.settings.overviewSections.needsAttention) state.settings.overviewSections.needsAttention = true;
-          await saveState(true);
+          if(activeOverviewKpi === id){
+            activeOverviewKpi = null;
+          } else {
+            activeOverviewKpi = id;
+          }
           render();
+          const drillBox = document.getElementById('gcc-kpi-drilldown-box');
+          if(drillBox){
+            drillBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
         };
       });
+
+      const closeKpiBtn = document.getElementById('btn-close-kpi-drilldown');
+      if(closeKpiBtn){
+        closeKpiBtn.onclick = ()=>{
+          activeOverviewKpi = null;
+          render();
+        };
+      }
     }
 
     if(view==='register'){
@@ -3489,7 +3811,26 @@ function onFormSubmit(e) {
       loadWebhookLogs();
     }
 
+    // Custom inline column editing
+    document.querySelectorAll('[data-custom-edit]').forEach(inp=>{
+      inp.onchange = async ()=>{
+        const parts = inp.dataset.customEdit.split(':');
+        const itemType = parts[0];
+        const id = parts[1];
+        const key = parts.slice(2).join(':');
+        const list = itemType === 'action' ? state.actions : state.decisions;
+        const item = list.find(x => String(x.id) === id);
+        if(item){
+          if(!item.custom) item.custom = {};
+          item.custom[key] = inp.value;
+          await saveState(true);
+          Toast.success('Saved cell.');
+        }
+      };
+    });
+
     if(view==='settings'){
+      // Color pickers (Text & Status)
       document.querySelectorAll('[data-color-key]').forEach(inp=>{
         inp.oninput = async ()=>{
           state.settings.colors[inp.dataset.colorKey] = inp.value;
@@ -3497,12 +3838,282 @@ function onFormSubmit(e) {
           await saveState(true);
         };
       });
+
+      // Company Color pickers
       document.querySelectorAll('[data-company-key]').forEach(inp=>{
         inp.oninput = async ()=>{
           state.settings.companyColors[inp.dataset.companyKey] = inp.value;
           await saveState(true);
         };
       });
+
+      // Company management
+      document.querySelectorAll('[data-company-remove]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.companyRemove;
+          if(state.settings.companies.length <= 1){ Toast.error('Keep at least one company in your portfolio.'); return; }
+          const co = state.settings.companies[i];
+          if(!confirm(`Remove company "${co.name}"? Existing action items stay tagged, but it will drop off the health overview and dropdowns.`)) return;
+          state.settings.companies.splice(i, 1);
+          await saveState(true);
+          Toast.success(`Company "${co.name}" removed.`);
+          render();
+        };
+      });
+
+      const addCoBtn = document.getElementById('btn-add-company');
+      if(addCoBtn){
+        addCoBtn.onclick = async ()=>{
+          const name = prompt('Enter new company name:');
+          if(!name || !name.trim()) return;
+          const id = name.trim();
+          if(state.settings.companies.some(c => c.id.toLowerCase() === id.toLowerCase() || c.name.toLowerCase() === id.toLowerCase())){
+            Toast.error('That company already exists.');
+            return;
+          }
+          state.settings.companies.push({id, name: id});
+          const palette = ['#3FA796', '#E0A458', '#8B7FD1', '#E0705C', '#5B8DEF', '#C77DD0', '#6DBE8C', '#D68BB0', '#FF9F1C', '#2EC4B6'];
+          state.settings.companyColors[id] = palette[state.settings.companies.length % palette.length];
+          await saveState(true);
+          Toast.success(`Company "${id}" added.`);
+          render();
+        };
+      }
+
+      // Status management
+      document.querySelectorAll('[data-status-remove]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.statusRemove;
+          if(state.settings.statuses.length <= 1){ Toast.error('Keep at least one status.'); return; }
+          const st = state.settings.statuses[i];
+          if(!confirm(`Remove status "${st}"? Existing items retain their status, but it will no longer appear in status selectors.`)) return;
+          state.settings.statuses.splice(i, 1);
+          await saveState(true);
+          Toast.success(`Status "${st}" removed.`);
+          render();
+        };
+      });
+
+      const addStBtn = document.getElementById('btn-add-status');
+      if(addStBtn){
+        addStBtn.onclick = async ()=>{
+          const name = prompt('Enter new status name:');
+          if(!name || !name.trim()) return;
+          const stName = name.trim();
+          if(state.settings.statuses.some(s => s.toLowerCase() === stName.toLowerCase())){
+            Toast.error('That status already exists.');
+            return;
+          }
+          const bucket = prompt('Which bucket does it belong to? Type one of: attention, progress, done, hold, future', 'progress');
+          const validBuckets = ['attention', 'progress', 'done', 'hold', 'future'];
+          const chosen = (bucket && validBuckets.includes(bucket.trim().toLowerCase())) ? bucket.trim().toLowerCase() : 'progress';
+          state.settings.statuses.push(stName);
+          state.settings.statusBuckets[stName] = chosen;
+          await saveState(true);
+          Toast.success(`Status "${stName}" added (${chosen}).`);
+          render();
+        };
+      }
+
+      // Register Columns Management
+      document.querySelectorAll('[data-col-visible]').forEach(cb=>{
+        cb.onchange = async ()=>{
+          const i = +cb.dataset.colVisible;
+          state.settings.columns[i].visible = cb.checked;
+          await saveState(true);
+        };
+      });
+
+      document.querySelectorAll('[data-col-up]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.colUp;
+          if(i <= 0) return;
+          const cols = state.settings.columns;
+          [cols[i-1], cols[i]] = [cols[i], cols[i-1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-col-down]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.colDown;
+          const cols = state.settings.columns;
+          if(i >= cols.length - 1) return;
+          [cols[i+1], cols[i]] = [cols[i], cols[i+1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-col-remove]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.colRemove;
+          if(state.settings.columns.length <= 1){ Toast.error('Keep at least one column.'); return; }
+          const col = state.settings.columns[i];
+          if(!confirm(`Remove column "${col.label}"? Any data entered in custom fields will be hidden.`)) return;
+          state.settings.columns.splice(i, 1);
+          await saveState(true);
+          Toast.success(`Column "${col.label}" removed.`);
+          render();
+        };
+      });
+
+      const addColRegBtn = document.getElementById('btn-add-col-register');
+      if(addColRegBtn){
+        addColRegBtn.onclick = async ()=>{
+          const label = prompt('Enter name for the new Register column:');
+          if(!label || !label.trim()) return;
+          const cleanLabel = label.trim();
+          const key = 'custom_' + cleanLabel.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+          state.settings.columns.push({ key, label: cleanLabel, visible: true });
+          await saveState(true);
+          Toast.success(`Column "${cleanLabel}" added to Register.`);
+          render();
+        };
+      }
+
+      // Decision Columns Management
+      document.querySelectorAll('[data-dcol-visible]').forEach(cb=>{
+        cb.onchange = async ()=>{
+          const i = +cb.dataset.dcolVisible;
+          state.settings.decisionColumns[i].visible = cb.checked;
+          await saveState(true);
+        };
+      });
+
+      document.querySelectorAll('[data-dcol-up]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.dcolUp;
+          if(i <= 0) return;
+          const cols = state.settings.decisionColumns;
+          [cols[i-1], cols[i]] = [cols[i], cols[i-1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-dcol-down]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.dcolDown;
+          const cols = state.settings.decisionColumns;
+          if(i >= cols.length - 1) return;
+          [cols[i+1], cols[i]] = [cols[i], cols[i+1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-dcol-remove]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.dcolRemove;
+          if(state.settings.decisionColumns.length <= 1){ Toast.error('Keep at least one decision column.'); return; }
+          const col = state.settings.decisionColumns[i];
+          if(!confirm(`Remove decision column "${col.label}"?`)) return;
+          state.settings.decisionColumns.splice(i, 1);
+          await saveState(true);
+          Toast.success(`Decision column "${col.label}" removed.`);
+          render();
+        };
+      });
+
+      const addColDecBtn = document.getElementById('btn-add-col-decisions');
+      if(addColDecBtn){
+        addColDecBtn.onclick = async ()=>{
+          const label = prompt('Enter name for the new Decision column:');
+          if(!label || !label.trim()) return;
+          const cleanLabel = label.trim();
+          const key = 'custom_' + cleanLabel.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+          state.settings.decisionColumns.push({ key, label: cleanLabel, visible: true });
+          await saveState(true);
+          Toast.success(`Column "${cleanLabel}" added to Decisions.`);
+          render();
+        };
+      }
+
+      // KPI Cards Management
+      document.querySelectorAll('[data-kpi-remove]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.kpiRemove;
+          state.settings.kpis.splice(i, 1);
+          await saveState(true);
+          Toast.success('KPI card removed.');
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-kpi-up]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.kpiUp;
+          if(i <= 0) return;
+          const kpis = state.settings.kpis;
+          [kpis[i-1], kpis[i]] = [kpis[i], kpis[i-1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-kpi-down]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.kpiDown;
+          const kpis = state.settings.kpis;
+          if(i >= kpis.length - 1) return;
+          [kpis[i+1], kpis[i]] = [kpis[i], kpis[i+1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      const addKpiBtn = document.getElementById('btn-add-kpi');
+      if(addKpiBtn){
+        addKpiBtn.onclick = async ()=>{
+          const sel = document.getElementById('kpi-add-select');
+          if(!sel || !sel.value) return;
+          const opt = sel.options[sel.selectedIndex];
+          state.settings.kpis.push({ id: sel.value, label: opt.dataset.label, visible: true });
+          await saveState(true);
+          Toast.success(`KPI card "${opt.dataset.label}" added.`);
+          render();
+        };
+      }
+
+      // Tab Management (Order & Visibility)
+      document.querySelectorAll('[data-tab-visible]').forEach(cb=>{
+        cb.onchange = async ()=>{
+          const i = +cb.dataset.tabVisible;
+          if(state.settings.tabs[i].key === 'settings'){
+            cb.checked = true;
+            return;
+          }
+          state.settings.tabs[i].visible = cb.checked;
+          await saveState(true);
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-tab-up]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.tabUp;
+          if(i <= 0) return;
+          const tabs = state.settings.tabs;
+          [tabs[i-1], tabs[i]] = [tabs[i], tabs[i-1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      document.querySelectorAll('[data-tab-down]').forEach(b=>{
+        b.onclick = async ()=>{
+          const i = +b.dataset.tabDown;
+          const tabs = state.settings.tabs;
+          if(i >= tabs.length - 1) return;
+          [tabs[i+1], tabs[i]] = [tabs[i], tabs[i+1]];
+          await saveState(true);
+          render();
+        };
+      });
+
+      // Spotlight Statuses Filter
       document.querySelectorAll('[data-spotlight-status]').forEach(chk=>{
         chk.onchange = async ()=>{
           const st = chk.dataset.spotlightStatus;
@@ -3515,6 +4126,20 @@ function onFormSubmit(e) {
           await saveState(true);
         };
       });
+
+      // Status Emphasis (Normal / Highlight / Mute)
+      document.querySelectorAll('[data-emph-status]').forEach(seg=>{
+        seg.querySelectorAll('button').forEach(btn=>{
+          btn.onclick = async ()=>{
+            state.settings.emphasis = state.settings.emphasis || {};
+            state.settings.emphasis[seg.dataset.emphStatus] = btn.dataset.emphVal;
+            await saveState(true);
+            render();
+          };
+        });
+      });
+
+      // PIN Access
       const pinBtn = document.getElementById('btn-set-pin');
       if(pinBtn){
         pinBtn.onclick = async ()=>{
@@ -3526,18 +4151,30 @@ function onFormSubmit(e) {
           state.settings.pin = next;
           if(next) sessionUnlocked = true;
           await saveState(true);
-          Toast.success(next ? 'PIN set.' : 'PIN removed.');
+          Toast.success(next ? 'PIN protection activated.' : 'PIN protection removed.');
           render();
         };
       }
+
+      // Reset Settings
       document.getElementById('btn-reset-settings').onclick = async ()=>{
+        if(!confirm('Reset colors, companies, statuses, columns, KPI cards, and tabs to defaults? Your action items, decisions, priorities, and PIN will remain untouched.')) return;
         const d = defaultSettings();
         state.settings.colors = d.colors;
         state.settings.companyColors = d.companyColors;
+        state.settings.companies = d.companies;
+        state.settings.statuses = d.statuses;
+        state.settings.statusBuckets = d.statusBuckets;
+        state.settings.columns = d.columns;
+        state.settings.decisionColumns = d.decisionColumns;
+        state.settings.kpis = d.kpis;
+        state.settings.tabs = d.tabs;
+        state.settings.emphasis = d.emphasis;
         state.settings.spotlightStatuses = d.spotlightStatuses;
+        state.settings.overviewSections = d.overviewSections;
         applyTheme();
         await saveState(true);
-        Toast.success('Appearance reset.');
+        Toast.success('Settings reset to defaults.');
         render();
       };
     }
