@@ -15,6 +15,7 @@ from services.data_validator import detect_sheet_type
 class TestCEODashboardBackend(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
+        save_state(get_initial_seed_data())
 
     def test_serve_frontend(self):
         response = self.client.get('/')

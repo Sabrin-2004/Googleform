@@ -282,6 +282,10 @@ def normalize_destination_key(destination: Optional[str]) -> str:
         return "decisions"
     if d in ["priorities", "priority", "okr", "focus"]:
         return "priorities"
+    if d in ["create_new", "new_company", "company"]:
+        return "create_new"
+    return "all"
+
 class ImportContext:
     """Manages 1-to-1 matching state for import operations."""
     def __init__(self, current_state: Dict[str, Any]):
@@ -920,35 +924,291 @@ def process_dataset_import(
     return current_state, metrics
 
 def export_state_to_excel(state: Dict[str, Any]) -> io.BytesIO:
-    """Exports the entire dashboard state to a multi-tab Excel workbook."""
+    """
+    Exports the entire dashboard state to a multi-tab, executive-styled Excel workbook (.xlsx).
+    Features:
+    - Slate/Navy header styling with bold white text
+    - Status column color-coded badge styling matching the dashboard palette (Done=Green, WIP=Blue, On Hold=Amber, Future=Purple, Blocked=Red)
+    - Excel DataValidation Dropdown lists for Status, Company, Function, Dependency, and Horizon columns
+    - Auto-adjusted column widths so no header or text is truncated
+    - Auto-filter enabled on all table headers
+    - Frozen header pane for seamless scrolling
+    """
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    # Keep reference to remove default sheet later
+    default_sheet = wb.active
+
+    # Styling definitions
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    data_font = Font(name="Calibri", size=10.5, color="0F172A")
+    id_font = Font(name="Consolas", size=9.5, color="64748B")
+
+    thin_border = Border(
+        left=Side(style='thin', color='E2E8F0'),
+        right=Side(style='thin', color='E2E8F0'),
+        top=Side(style='thin', color='E2E8F0'),
+        bottom=Side(style='thin', color='E2E8F0')
+    )
+    header_border = Border(
+        left=Side(style='thin', color='334155'),
+        right=Side(style='thin', color='334155'),
+        top=Side(style='medium', color='334155'),
+        bottom=Side(style='medium', color='334155')
+    )
+
+    # Status color palette mapping (Fill, TextColor)
+    status_palette = {
+        'done': ('E6F4EA', '0D652D'),
+        'completed': ('E6F4EA', '0D652D'),
+        'resolved': ('E6F4EA', '0D652D'),
+        'closed': ('E6F4EA', '0D652D'),
+        'decided': ('E6F4EA', '0D652D'),
+        'wip': ('E8F0FE', '185ABC'),
+        'in progress': ('E8F0FE', '185ABC'),
+        'active': ('E8F0FE', '185ABC'),
+        'in review': ('E8F0FE', '185ABC'),
+        'to review': ('E8F0FE', '185ABC'),
+        'on hold': ('FEF7E0', 'B06000'),
+        'pending': ('FEF7E0', 'B06000'),
+        'paused': ('FEF7E0', 'B06000'),
+        'waiting': ('FEF7E0', 'B06000'),
+        'future': ('F3E8FF', '6B21A8'),
+        'backlog': ('F3E8FF', '6B21A8'),
+        'to start': ('F3E8FF', '6B21A8'),
+        'planned': ('F3E8FF', '6B21A8'),
+        'blocked': ('FCE8E6', 'C5221F'),
+        'attention': ('FCE8E6', 'C5221F'),
+        'urgent': ('FCE8E6', 'C5221F'),
+        'issue': ('FCE8E6', 'C5221F'),
+        'cancelled': ('F1F5F9', '64748B'),
+    }
+
+    def get_status_style(status_text: str):
+        st_clean = str(status_text).strip().lower()
+        if st_clean in status_palette:
+            bg_hex, fg_hex = status_palette[st_clean]
+            return PatternFill(start_color=bg_hex, end_color=bg_hex, fill_type="solid"), Font(name="Calibri", size=10, bold=True, color=fg_hex)
+        for k, (bg_hex, fg_hex) in status_palette.items():
+            if k in st_clean:
+                return PatternFill(start_color=bg_hex, end_color=bg_hex, fill_type="solid"), Font(name="Calibri", size=10, bold=True, color=fg_hex)
+        return PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid"), Font(name="Calibri", size=10, bold=True, color="334155")
+
+    # Helper: Populate Lookups Sheet for dynamic dropdown lists
+    ws_lookups = wb.create_sheet(title="_Lookups")
+    ws_lookups.views.sheetView[0].tabSelected = False
+    ws_lookups.sheet_state = 'hidden'
+
+    # Extract distinct lookups
+    all_companies = [c.get('name', c.get('id', '')) for c in state.get('settings', {}).get('companies', []) if c.get('name') or c.get('id')]
+    actions_companies = [str(a.get('company', '')).strip() for a in state.get('actions', []) if str(a.get('company', '')).strip()]
+    unique_companies = sorted(list(set(all_companies + actions_companies))) or ["General", "Pranik", "Abhi", "Aarna", "Miraa", "EdT"]
+    
+    unique_statuses = [
+        "Done", "In Progress", "WIP", "On Hold", "Future", "Blocked", "Pending", "To Review"
+    ]
+    unique_functions = [
+        "GTM", "Product", "Engineering", "Operations", "Finance", "People", "Content", "Marketing", "Sales", "Legal", "General"
+    ]
+    unique_dependencies = [
+        "Decision", "Clarity", "Blocker", "To Review", "None"
+    ]
+    unique_horizons = [
+        "Next 30 days", "Next 60 days", "Next 90 days", "Q1", "Q2", "Q3", "Q4", "Long-term"
+    ]
+
+    # Write lookups columns
+    ws_lookups.append(["Companies", "Statuses", "Functions", "Dependencies", "Horizons"])
+    max_len = max(len(unique_companies), len(unique_statuses), len(unique_functions), len(unique_dependencies), len(unique_horizons))
+    for i in range(max_len):
+        ws_lookups.append([
+            unique_companies[i] if i < len(unique_companies) else "",
+            unique_statuses[i] if i < len(unique_statuses) else "",
+            unique_functions[i] if i < len(unique_functions) else "",
+            unique_dependencies[i] if i < len(unique_dependencies) else "",
+            unique_horizons[i] if i < len(unique_horizons) else "",
+        ])
+
+    comp_range = f"_Lookups!$A$2:$A${len(unique_companies)+1}"
+    status_range = f"_Lookups!$B$2:$B${len(unique_statuses)+1}"
+    func_range = f"_Lookups!$C$2:$C${len(unique_functions)+1}"
+    dep_range = f"_Lookups!$D$2:$D${len(unique_dependencies)+1}"
+    horizon_range = f"_Lookups!$E$2:$E${len(unique_horizons)+1}"
+
+    # -------------------------------------------------------------
+    # 1. ACTIONS SHEET (Action Items Register)
+    # -------------------------------------------------------------
+    ws_actions = wb.create_sheet(title="Actions")
+    action_labels = ["ID", "Company", "Function", "Action Item", "Status", "Owner", "Founder Dependency", "Due Date", "Comments / Notes"]
+    ws_actions.append(action_labels)
+    ws_actions.row_dimensions[1].height = 26
+
+    actions_data = state.get('actions', [])
+    for row_idx, a in enumerate(actions_data, start=2):
+        row_vals = [
+            str(a.get('id', f"a_{row_idx-1}")),
+            str(a.get('company', '')),
+            str(a.get('function', '')),
+            str(a.get('item', '')),
+            str(a.get('status', 'WIP')),
+            str(a.get('owner', '')),
+            str(a.get('founderDependency', 'None')),
+            str(a.get('due', '')),
+            str(a.get('comments', ''))
+        ]
+        ws_actions.append(row_vals)
+        ws_actions.row_dimensions[row_idx].height = 20
+
+    # Data Validations on Actions sheet
+    max_act_row = max(len(actions_data)+100, 500)
+    dv_act_status = DataValidation(type='list', formula1=status_range, allow_blank=True)
+    ws_actions.add_data_validation(dv_act_status)
+    dv_act_status.add(f"E2:E{max_act_row}")
+
+    dv_act_comp = DataValidation(type='list', formula1=comp_range, allow_blank=True)
+    ws_actions.add_data_validation(dv_act_comp)
+    dv_act_comp.add(f"B2:B{max_act_row}")
+
+    dv_act_func = DataValidation(type='list', formula1=func_range, allow_blank=True)
+    ws_actions.add_data_validation(dv_act_func)
+    dv_act_func.add(f"C2:C{max_act_row}")
+
+    dv_act_dep = DataValidation(type='list', formula1=dep_range, allow_blank=True)
+    ws_actions.add_data_validation(dv_act_dep)
+    dv_act_dep.add(f"G2:G{max_act_row}")
+
+    # -------------------------------------------------------------
+    # 2. DECISIONS SHEET (Decisions Log)
+    # -------------------------------------------------------------
+    ws_decisions = wb.create_sheet(title="Decisions")
+    decision_labels = ["ID", "Decision Required", "Owner", "Status", "Founder Dependency", "Impact if Delayed", "Deadline", "Next Review"]
+    ws_decisions.append(decision_labels)
+    ws_decisions.row_dimensions[1].height = 26
+
+    decisions_data = state.get('decisions', [])
+    for row_idx, d in enumerate(decisions_data, start=2):
+        row_vals = [
+            str(d.get('id', f"d_{row_idx-1}")),
+            str(d.get('decision', '')),
+            str(d.get('owner', '')),
+            str(d.get('status', 'To Start')),
+            str(d.get('founderDependency', 'To Review')),
+            str(d.get('impact', '')),
+            str(d.get('deadline', '')),
+            str(d.get('nextReview', ''))
+        ]
+        ws_decisions.append(row_vals)
+        ws_decisions.row_dimensions[row_idx].height = 20
+
+    max_dec_row = max(len(decisions_data)+100, 500)
+    dv_dec_status = DataValidation(type='list', formula1=status_range, allow_blank=True)
+    ws_decisions.add_data_validation(dv_dec_status)
+    dv_dec_status.add(f"D2:D{max_dec_row}")
+
+    dv_dec_dep = DataValidation(type='list', formula1=dep_range, allow_blank=True)
+    ws_decisions.add_data_validation(dv_dec_dep)
+    dv_dec_dep.add(f"E2:E{max_dec_row}")
+
+    # -------------------------------------------------------------
+    # 3. PRIORITIES SHEET (Strategic Priorities)
+    # -------------------------------------------------------------
+    ws_priorities = wb.create_sheet(title="Priorities")
+    priority_labels = ["ID", "Priority Rank", "Strategic Group", "Focus Area / Initiative", "Why & Strategic Impact", "Time Horizon"]
+    ws_priorities.append(priority_labels)
+    ws_priorities.row_dimensions[1].height = 26
+
+    priorities_data = state.get('priorities', [])
+    for row_idx, p in enumerate(priorities_data, start=2):
+        row_vals = [
+            str(p.get('id', f"p_{row_idx-1}")),
+            str(p.get('priority', '1.0')),
+            str(p.get('group', 'Strategic Focus')),
+            str(p.get('focusArea', '')),
+            str(p.get('why', '')),
+            str(p.get('horizon', 'Next 30 days'))
+        ]
+        ws_priorities.append(row_vals)
+        ws_priorities.row_dimensions[row_idx].height = 20
+
+    max_prio_row = max(len(priorities_data)+100, 500)
+    dv_prio_horizon = DataValidation(type='list', formula1=horizon_range, allow_blank=True)
+    ws_priorities.add_data_validation(dv_prio_horizon)
+    dv_prio_horizon.add(f"F2:F{max_prio_row}")
+
+    # -------------------------------------------------------------
+    # 4. COMPANIES SHEET
+    # -------------------------------------------------------------
+    ws_companies = wb.create_sheet(title="Companies")
+    ws_companies.append(["Company ID", "Company Name"])
+    ws_companies.row_dimensions[1].height = 26
+    companies_data = state.get('settings', {}).get('companies', [])
+    for row_idx, c in enumerate(companies_data, start=2):
+        ws_companies.append([str(c.get('id', '')), str(c.get('name', ''))])
+        ws_companies.row_dimensions[row_idx].height = 20
+
+    # -------------------------------------------------------------
+    # Apply Formatting, Colors & Auto-Widths to all visible sheets
+    # -------------------------------------------------------------
+    for ws in [ws_actions, ws_decisions, ws_priorities, ws_companies]:
+        ws.freeze_panes = 'A2'
+        ws.auto_filter.ref = ws.dimensions
+
+        # Format header row
+        for col_idx in range(1, ws.max_column + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = header_border
+
+        # Format data cells
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+            for cell in row:
+                cell.border = thin_border
+                cell.font = data_font
+                cell.alignment = Alignment(vertical="center")
+
+                # ID column style
+                if cell.column == 1:
+                    cell.font = id_font
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                # Color-code status cells
+                if ws.title == "Actions" and cell.column == 5:  # Status column in Actions
+                    if cell.value:
+                        fill_style, font_style = get_status_style(str(cell.value))
+                        cell.fill = fill_style
+                        cell.font = font_style
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                elif ws.title == "Decisions" and cell.column == 4:  # Status column in Decisions
+                    if cell.value:
+                        fill_style, font_style = get_status_style(str(cell.value))
+                        cell.fill = fill_style
+                        cell.font = font_style
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # Auto-adjust column widths
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                val_str = str(cell.value or '')
+                if len(val_str) > max_len:
+                    max_len = len(val_str)
+            # Set width with breathing room (min 13, max 60)
+            ws.column_dimensions[col_letter].width = max(min(max_len + 5, 60), 13)
+
+    # Remove the initial empty sheet
+    if default_sheet in wb.worksheets and len(wb.worksheets) > 1:
+        wb.remove(default_sheet)
+
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        actions = state.get('actions', [])
-        if actions:
-            df_actions = pd.DataFrame(actions)
-            df_actions.to_excel(writer, sheet_name='Actions', index=False)
-        else:
-            pd.DataFrame([{"Item": "", "Company": "", "Function": "", "Status": "", "Owner": "", "Founder Dependency": "", "Comments": ""}]).to_excel(writer, sheet_name='Actions', index=False)
-
-        decisions = state.get('decisions', [])
-        if decisions:
-            df_decisions = pd.DataFrame(decisions)
-            df_decisions.to_excel(writer, sheet_name='Decisions', index=False)
-        else:
-            pd.DataFrame([{"Decision": "", "Owner": "", "Status": "", "Founder Dependency": "", "Impact": "", "Deadline": ""}]).to_excel(writer, sheet_name='Decisions', index=False)
-
-        priorities = state.get('priorities', [])
-        if priorities:
-            df_priorities = pd.DataFrame(priorities)
-            df_priorities.to_excel(writer, sheet_name='Priorities', index=False)
-        else:
-            pd.DataFrame([{"Priority": "", "Group": "", "Focus Area": "", "Why": "", "Horizon": ""}]).to_excel(writer, sheet_name='Priorities', index=False)
-
-        companies = state.get('settings', {}).get('companies', [])
-        if companies:
-            df_companies = pd.DataFrame(companies)
-            df_companies.to_excel(writer, sheet_name='Companies', index=False)
-
+    wb.save(output)
     output.seek(0)
     return output
 

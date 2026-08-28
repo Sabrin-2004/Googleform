@@ -1162,6 +1162,98 @@
     };
   }
 
+  // Quick Add Action Item Modal
+  function openAddActionModal(){
+    const titleHtml = `${icon('plus')} Add New Action Item`;
+    const defaultComp = filters.register.company || (companiesList()[0]?.id) || 'General';
+    const bodyHtml = `
+      <div class="gcc-form">
+        <label>Action Item Description <span style="color:var(--attention);">*</span></label>
+        <textarea id="add-act-item" class="gcc-textarea" style="min-height:75px;" placeholder="e.g. Finalize Q3 vendor contract negotiations and compliance audit"></textarea>
+        
+        <div class="two">
+          <div>
+            <label>Company</label>
+            <select id="add-act-company">
+              ${companiesList().map(c=>`<option value="${c.id}" ${defaultComp===c.id?'selected':''}>${c.name}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Function / Department</label>
+            <input id="add-act-function" placeholder="e.g. GTM, Product, Operations" value="${escapeHtml(filters.register.function || 'General')}"/>
+          </div>
+        </div>
+
+        <div class="two">
+          <div>
+            <label>Owner / Assignee</label>
+            <input id="add-act-owner" placeholder="e.g. Kiran, Sarah" value="${escapeHtml(filters.register.owner || '')}"/>
+          </div>
+          <div>
+            <label>Status</label>
+            <select id="add-act-status">
+              ${statusesList().map(s=>`<option value="${s}" ${s==='WIP'||s==='In Progress'?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="two">
+          <div>
+            <label>Founder Dependency</label>
+            <select id="add-act-founder">
+              <option value="None">None</option>
+              <option value="To Review">To Review</option>
+              <option value="Decision">Decision</option>
+              <option value="Clarity">Clarity</option>
+              <option value="Blocker">Blocker</option>
+            </select>
+          </div>
+          <div>
+            <label>Due Date</label>
+            <input id="add-act-due" placeholder="e.g. 2026-09-15 or Next Week"/>
+          </div>
+        </div>
+
+        <label>Notes / Comments</label>
+        <textarea id="add-act-comments" class="gcc-textarea" style="min-height:60px;" placeholder="Additional context, links, or remarks…"></textarea>
+      </div>
+    `;
+
+    const footerHtml = `
+      <div></div>
+      <div style="display:flex;gap:8px;">
+        <button class="gcc-btn secondary" onclick="document.getElementById('gcc-modal-close-btn').click();">Cancel</button>
+        <button class="gcc-btn" id="btn-submit-add-act">${icon('plus')} Create Action Item</button>
+      </div>
+    `;
+
+    showModal(titleHtml, bodyHtml, footerHtml);
+
+    document.getElementById('btn-submit-add-act').onclick = async ()=>{
+      const newItem = document.getElementById('add-act-item').value.trim();
+      if(!newItem){ Toast.error('Action item description is required.'); return; }
+
+      const newAction = {
+        id: 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+        item: newItem,
+        company: document.getElementById('add-act-company').value,
+        function: document.getElementById('add-act-function').value.trim() || 'General',
+        owner: document.getElementById('add-act-owner').value.trim(),
+        status: document.getElementById('add-act-status').value,
+        founderDependency: document.getElementById('add-act-founder').value.trim() || 'None',
+        due: document.getElementById('add-act-due').value.trim(),
+        comments: document.getElementById('add-act-comments').value.trim(),
+        hidden: false
+      };
+
+      state.actions.unshift(newAction);
+      closeModal();
+      await saveState(true);
+      Toast.success('Action item created successfully.');
+      render();
+    };
+  }
+
   // Edit Decision Modal
   function openEditDecisionModal(decisionId){
     const d = state.decisions.find(x=>x.id === decisionId);
@@ -1576,45 +1668,76 @@
     const f = filters.register;
     let items = state.actions.slice();
     if(!f.showHidden) items = items.filter(a=>!a.hidden);
-    if(f.company) items = items.filter(a=>a.company===f.company);
-    if(f.status) items = items.filter(a=>a.status===f.status);
-    if(f.function) items = items.filter(a=>a.function===f.function);
-    if(f.owner) items = items.filter(a=>a.owner===f.owner);
-    if(f.founderDependency) items = items.filter(a=>(a.founderDependency||'')===f.founderDependency);
+    if(f.company) items = items.filter(a=>(a.company||'').trim().toLowerCase()===f.company.trim().toLowerCase());
+    if(f.status) items = items.filter(a=>(a.status||'').trim().toLowerCase()===f.status.trim().toLowerCase());
+    if(f.function) items = items.filter(a=>(a.function||'').trim().toLowerCase()===f.function.trim().toLowerCase());
+    if(f.owner) items = items.filter(a=>(a.owner||'').trim().toLowerCase()===f.owner.trim().toLowerCase());
+    if(f.founderDependency) items = items.filter(a=>(a.founderDependency||'').trim().toLowerCase()===f.founderDependency.trim().toLowerCase());
     if(f.q){
-      const q = f.q.toLowerCase();
-      items = items.filter(a=>(a.item+a.owner+a.comments+a.function+a.company).toLowerCase().includes(q));
+      const q = f.q.trim().toLowerCase();
+      items = items.filter(a=>(
+        (a.item||'') + ' ' +
+        (a.owner||'') + ' ' +
+        (a.comments||'') + ' ' +
+        (a.function||'') + ' ' +
+        (a.company||'') + ' ' +
+        (a.founderDependency||'') + ' ' +
+        (a.due||'')
+      ).toLowerCase().includes(q));
     }
 
-    const functions = [...new Set(state.actions.map(a=>a.function).filter(Boolean))].sort();
-    const owners = [...new Set(state.actions.map(a=>a.owner).filter(Boolean))].sort();
-    const founderDeps = [...new Set(state.actions.map(a=>a.founderDependency).filter(Boolean))].sort();
+    const functions = [...new Set(state.actions.map(a=>(a.function||'').trim()).filter(Boolean))].sort();
+    const owners = [...new Set(state.actions.map(a=>(a.owner||'').trim()).filter(Boolean))].sort();
+    const founderDeps = [...new Set(state.actions.map(a=>(a.founderDependency||'').trim()).filter(Boolean))].sort();
     const visibleCols = state.settings.columns.filter(c=>c.visible);
+    const hasActiveFilters = Boolean(f.company || f.status || f.function || f.owner || f.founderDependency || f.q || f.showHidden);
 
     return `
-      <div class="gcc-filters">
-        <select id="f-company">
+      <div class="gcc-filters" style="flex-wrap:wrap;gap:8px;align-items:center;">
+        <select id="f-company" title="Filter by company">
           <option value="">All Companies (${state.actions.length})</option>
-          ${companiesList().map(c=>`<option value="${c.id}" ${f.company===c.id?'selected':''}>${c.name}</option>`).join('')}
+          ${companiesList().map(c=>{
+            const count = state.actions.filter(a=> (a.company||'').toLowerCase()===c.id.toLowerCase() || (a.company||'').toLowerCase()===c.name.toLowerCase()).length;
+            return `<option value="${c.id}" ${f.company.toLowerCase()===c.id.toLowerCase()?'selected':''}>${c.name} (${count})</option>`;
+          }).join('')}
         </select>
-        <select id="f-status">
+        <select id="f-status" title="Filter by status">
           <option value="">All Statuses</option>
-          ${statusesList().map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s}</option>`).join('')}
+          ${statusesList().map(s=>{
+            const count = state.actions.filter(a=>(a.status||'').toLowerCase()===s.toLowerCase()).length;
+            return `<option value="${s}" ${f.status.toLowerCase()===s.toLowerCase()?'selected':''}>${s} (${count})</option>`;
+          }).join('')}
         </select>
-        <select id="f-function">
+        <select id="f-function" title="Filter by function">
           <option value="">All Functions</option>
-          ${functions.map(fn=>`<option value="${fn}" ${f.function===fn?'selected':''}>${fn}</option>`).join('')}
+          ${functions.map(fn=>{
+            const count = state.actions.filter(a=>(a.function||'').toLowerCase()===fn.toLowerCase()).length;
+            return `<option value="${fn}" ${f.function.toLowerCase()===fn.toLowerCase()?'selected':''}>${fn} (${count})</option>`;
+          }).join('')}
         </select>
-        <select id="f-owner">
+        <select id="f-owner" title="Filter by owner">
           <option value="">All Owners</option>
-          ${owners.map(o=>`<option value="${o}" ${f.owner===o?'selected':''}>${o}</option>`).join('')}
+          ${owners.map(o=>{
+            const count = state.actions.filter(a=>(a.owner||'').toLowerCase()===o.toLowerCase()).length;
+            return `<option value="${o}" ${f.owner.toLowerCase()===o.toLowerCase()?'selected':''}>${o} (${count})</option>`;
+          }).join('')}
         </select>
-        <select id="f-founder">
+        <select id="f-founder" title="Filter by Founder Dependency">
           <option value="">Founder Dependency</option>
-          ${founderDeps.map(fd=>`<option value="${fd}" ${f.founderDependency===fd?'selected':''}>${fd}</option>`).join('')}
+          ${founderDeps.map(fd=>{
+            const count = state.actions.filter(a=>(a.founderDependency||'').toLowerCase()===fd.toLowerCase()).length;
+            return `<option value="${fd}" ${f.founderDependency.toLowerCase()===fd.toLowerCase()?'selected':''}>${fd} (${count})</option>`;
+          }).join('')}
         </select>
         <input id="f-q" placeholder="Filter tasks, owners, notes…" value="${escapeHtml(f.q)}" style="flex:1;min-width:180px;"/>
         <label class="gcc-checkline" style="margin:0;"><input type="checkbox" id="f-show-hidden" ${f.showHidden?'checked':''}/> Show hidden</label>
+        
+        <button class="gcc-btn secondary" id="btn-reset-register-filters" title="Reset all filters to default" style="padding:5px 10px;font-size:11.5px;display:inline-flex;align-items:center;gap:4px;${hasActiveFilters?'border-color:var(--progress);color:var(--progress);':''}">
+          ${icon('refresh')} Reset Filters
+        </button>
+        <button class="gcc-btn" id="btn-open-add-action" style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:5px 12px;font-size:12px;">
+          ${icon('plus')} Add Action Item
+        </button>
       </div>
 
       <div class="gcc-table-wrap">
@@ -2691,6 +2814,26 @@ function onFormSubmit(e) {
       document.getElementById('f-founder').onchange = e=>{filters.register.founderDependency=e.target.value; render();};
       document.getElementById('f-show-hidden').onchange = e=>{filters.register.showHidden=e.target.checked; render();};
 
+      const resetBtn = document.getElementById('btn-reset-register-filters');
+      if(resetBtn){
+        resetBtn.onclick = ()=>{
+          filters.register = {
+            company: '',
+            status: '',
+            function: '',
+            owner: '',
+            founderDependency: '',
+            q: '',
+            showHidden: false
+          };
+          Toast.info('Filters reset to default.');
+          render();
+        };
+      }
+
+      const addActBtn = document.getElementById('btn-open-add-action');
+      if(addActBtn) addActBtn.onclick = openAddActionModal;
+
       const fq = document.getElementById('f-q');
       if(fq){
         fq.oninput = e=>{
@@ -2699,14 +2842,22 @@ function onFormSubmit(e) {
           const f = filters.register;
           let items = state.actions.slice();
           if(!f.showHidden) items = items.filter(a=>!a.hidden);
-          if(f.company) items = items.filter(a=>a.company===f.company);
-          if(f.status) items = items.filter(a=>a.status===f.status);
-          if(f.function) items = items.filter(a=>a.function===f.function);
-          if(f.owner) items = items.filter(a=>a.owner===f.owner);
-          if(f.founderDependency) items = items.filter(a=>(a.founderDependency||'')===f.founderDependency);
+          if(f.company) items = items.filter(a=>(a.company||'').trim().toLowerCase()===f.company.trim().toLowerCase());
+          if(f.status) items = items.filter(a=>(a.status||'').trim().toLowerCase()===f.status.trim().toLowerCase());
+          if(f.function) items = items.filter(a=>(a.function||'').trim().toLowerCase()===f.function.trim().toLowerCase());
+          if(f.owner) items = items.filter(a=>(a.owner||'').trim().toLowerCase()===f.owner.trim().toLowerCase());
+          if(f.founderDependency) items = items.filter(a=>(a.founderDependency||'').trim().toLowerCase()===f.founderDependency.trim().toLowerCase());
           if(f.q){
-            const q = f.q.toLowerCase();
-            items = items.filter(a=>(a.item+a.owner+a.comments+a.function+a.company).toLowerCase().includes(q));
+            const q = f.q.trim().toLowerCase();
+            items = items.filter(a=>(
+              (a.item||'') + ' ' +
+              (a.owner||'') + ' ' +
+              (a.comments||'') + ' ' +
+              (a.function||'') + ' ' +
+              (a.company||'') + ' ' +
+              (a.founderDependency||'') + ' ' +
+              (a.due||'')
+            ).toLowerCase().includes(q));
           }
           const visibleCols = state.settings.columns.filter(c=>c.visible);
           const tbody = document.getElementById('register-tbody');
