@@ -124,7 +124,13 @@ def serve_admin_panel():
 
 @app.get("/api/health")
 def health_check():
-    """Returns backend health, Google Sheets config status, and storage status."""
+    """Public health ping — returns minimal status only. No sensitive data exposed."""
+    return {"status": "healthy"}
+
+@app.get("/api/status")
+def detailed_status(request: Request):
+    """Returns detailed backend status including credentials and data counts. Requires authentication."""
+    _require_auth(request)
     state = get_state()
     creds_info = get_credentials_info()
     configured_sheet_id = (
@@ -136,7 +142,6 @@ def health_check():
         "status": "healthy",
         "timestamp": state.get("lastUpdated"),
         "hasCredentials": creds_info.get("hasCredentials", False),
-        "credentialsFile": creds_info.get("filePath"),
         "credentialsSource": creds_info.get("source", "none"),
         "serviceAccountEmail": creds_info.get("clientEmail"),
         "configuredSheetId": configured_sheet_id,
