@@ -150,8 +150,9 @@ def health_check():
 # ==========================================
 
 @app.get("/api/credentials/status")
-def credentials_status():
-    """Returns metadata about the currently loaded Google Service Account credentials."""
+def credentials_status(request: Request):
+    """Returns metadata about the currently loaded Google Service Account credentials. Requires authentication."""
+    _require_auth(request)
     info = get_credentials_info()
     state = get_state()
     sheet_id = (
@@ -170,9 +171,10 @@ def credentials_status():
 @app.post("/api/credentials/test")
 async def test_credentials(request: Request):
     """
-    Live-tests the currently loaded credentials (or posted credentials JSON) against Google API.
+    Live-tests the currently loaded credentials. Requires authentication.
     Optionally validates access to a specific Google Sheet if sheetId is provided.
     """
+    _require_auth(request)
     body: dict = {}
     try:
         body = await request.json()
@@ -194,11 +196,12 @@ async def upload_credentials(
     file: Optional[UploadFile] = File(default=None)
 ):
     """
-    Accepts a new Service Account JSON key either as a file upload or raw JSON in request body.
+    Accepts a new Service Account JSON key. Requires admin authentication.
     Validates the key with Google OAuth before applying it.
     Hot-reloads credentials in memory and optionally saves to credentials.json on disk.
     No server restart required.
     """
+    _require_admin(request)
     import json
 
     creds_dict = None
@@ -261,12 +264,13 @@ async def upload_credentials(
     }
 
 @app.post("/api/companies/cleanup-fallback")
-async def cleanup_fallback_companies():
+async def cleanup_fallback_companies(request: Request):
     """
     Removes actions/decisions/priorities assigned to the fallback 'Google Sheet' company
     and removes 'Google Sheet' from the companies list.
-    Use this after successfully re-syncing via Service Account to clean up old fallback data.
+    Requires authentication.
     """
+    _require_auth(request)
     state = get_state()
     fallback_name = "Google Sheet"
 
@@ -299,13 +303,15 @@ async def cleanup_fallback_companies():
 # ==========================================
 
 @app.get("/api/data")
-def get_dashboard_data():
-    """Returns complete state for the dashboard."""
+def get_dashboard_data(request: Request):
+    """Returns complete state for the dashboard. Requires authentication."""
+    _require_auth(request)
     return get_state()
 
 @app.post("/api/save")
 async def save_dashboard_data(request: Request):
-    """Saves the entire state payload."""
+    """Saves the entire state payload. Requires authentication."""
+    _require_auth(request)
     try:
         new_state = await request.json()
         if not isinstance(new_state, dict):
@@ -327,7 +333,8 @@ async def save_dashboard_data(request: Request):
 
 @app.post("/api/actions")
 async def add_action(request: Request):
-    """Adds a new action item."""
+    """Adds a new action item. Requires authentication."""
+    _require_auth(request)
     data = await request.json()
     state = get_state()
     norm = normalize_action_item(data)
@@ -341,7 +348,8 @@ async def add_action(request: Request):
 
 @app.put("/api/actions/{action_id}")
 async def update_action(action_id: str, request: Request):
-    """Updates an existing action item."""
+    """Updates an existing action item. Requires authentication."""
+    _require_auth(request)
     updates = await request.json()
     state = get_state()
     actions = state.get("actions", [])
@@ -359,8 +367,9 @@ async def update_action(action_id: str, request: Request):
     return {"success": True, "action_id": action_id}
 
 @app.delete("/api/actions/{action_id}")
-def delete_action(action_id: str):
-    """Deletes an action item."""
+def delete_action(action_id: str, request: Request):
+    """Deletes an action item. Requires authentication."""
+    _require_auth(request)
     state = get_state()
     orig_len = len(state.get("actions", []))
     state["actions"] = [a for a in state.get("actions", []) if str(a.get("id")) != str(action_id)]
@@ -376,7 +385,8 @@ def delete_action(action_id: str):
 
 @app.post("/api/decisions")
 async def add_decision(request: Request):
-    """Adds a new decision."""
+    """Adds a new decision. Requires authentication."""
+    _require_auth(request)
     data = await request.json()
     state = get_state()
     norm = normalize_decision_item(data)
@@ -389,7 +399,8 @@ async def add_decision(request: Request):
 
 @app.put("/api/decisions/{decision_id}")
 async def update_decision(decision_id: str, request: Request):
-    """Updates an existing decision."""
+    """Updates an existing decision. Requires authentication."""
+    _require_auth(request)
     updates = await request.json()
     state = get_state()
     decisions = state.get("decisions", [])
@@ -406,8 +417,9 @@ async def update_decision(decision_id: str, request: Request):
     return {"success": True, "decision_id": decision_id}
 
 @app.delete("/api/decisions/{decision_id}")
-def delete_decision(decision_id: str):
-    """Deletes a decision."""
+def delete_decision(decision_id: str, request: Request):
+    """Deletes a decision. Requires authentication."""
+    _require_auth(request)
     state = get_state()
     orig_len = len(state.get("decisions", []))
     state["decisions"] = [d for d in state.get("decisions", []) if str(d.get("id")) != str(decision_id)]
@@ -423,7 +435,8 @@ def delete_decision(decision_id: str):
 
 @app.post("/api/priorities")
 async def add_priority(request: Request):
-    """Adds a strategic priority."""
+    """Adds a strategic priority. Requires authentication."""
+    _require_auth(request)
     data = await request.json()
     state = get_state()
     norm = normalize_priority_item(data)
@@ -436,7 +449,8 @@ async def add_priority(request: Request):
 
 @app.put("/api/priorities/{priority_id}")
 async def update_priority(priority_id: str, request: Request):
-    """Updates a strategic priority."""
+    """Updates a strategic priority. Requires authentication."""
+    _require_auth(request)
     updates = await request.json()
     state = get_state()
     priorities = state.get("priorities", [])
@@ -453,8 +467,9 @@ async def update_priority(priority_id: str, request: Request):
     return {"success": True, "priority_id": priority_id}
 
 @app.delete("/api/priorities/{priority_id}")
-def delete_priority(priority_id: str):
-    """Deletes a strategic priority."""
+def delete_priority(priority_id: str, request: Request):
+    """Deletes a strategic priority. Requires authentication."""
+    _require_auth(request)
     state = get_state()
     orig_len = len(state.get("priorities", []))
     state["priorities"] = [p for p in state.get("priorities", []) if str(p.get("id")) != str(priority_id)]
@@ -470,7 +485,8 @@ def delete_priority(priority_id: str):
 
 @app.post("/api/settings")
 async def update_settings(request: Request):
-    """Updates settings object."""
+    """Updates settings object. Requires authentication."""
+    _require_auth(request)
     updates = await request.json()
     state = get_state()
     settings = state.setdefault("settings", {})
@@ -484,7 +500,8 @@ async def update_settings(request: Request):
 
 @app.post("/api/sync/google-sheets")
 async def sync_google_sheets(request: Request):
-    """Triggers live synchronization with Google Sheets with advanced destination, threshold, and conflict handling."""
+    """Triggers live synchronization with Google Sheets. Requires authentication."""
+    _require_auth(request)
     body: dict = {}
     try:
         body = await request.json()
@@ -562,12 +579,13 @@ async def upload_files(
     new_company_name: Optional[str] = Form(default=None),
 ):
     """
-    Handles multi-file uploads:
+    Handles multi-file uploads. Requires authentication.
     - Multiple CSV files (3+ CSVs simultaneously)
     - Multi-tab Excel workbooks (.xlsx, .xls)
     - Mixed uploads
     - Supports Destination routing, Threshold exclusions, Overlap resolution strategies.
     """
+    _require_auth(request)
     uploaded_files: List[UploadFile] = []
     
     # 1. Collect from files parameter
@@ -710,9 +728,10 @@ async def upload_files(
 @app.post("/api/conflicts/resolve")
 async def resolve_conflicts(request: Request):
     """
-    Applies manual conflict resolutions:
+    Applies manual conflict resolutions. Requires authentication.
     Expects payload: { "resolutions": [ { "id": str, "type": "action"|"decision"|"priority", "resolution": "use_incoming"|"keep_existing"|"custom", "incoming": dict, "custom_values": dict } ] }
     """
+    _require_auth(request)
     try:
         payload = await request.json()
         resolutions = payload.get("resolutions", [])
@@ -796,8 +815,9 @@ async def resolve_conflicts(request: Request):
 # ==========================================
 
 @app.get("/api/export/excel")
-def export_excel():
-    """Exports state as a multi-tab Excel file."""
+def export_excel(request: Request):
+    """Exports state as a multi-tab Excel file. Requires authentication."""
+    _require_auth(request)
     state = get_state()
     excel_stream = export_state_to_excel(state)
     return StreamingResponse(
@@ -807,8 +827,9 @@ def export_excel():
     )
 
 @app.get("/api/export/csv")
-def export_csv_zip():
-    """Exports state as a zip file with CSVs for all tables."""
+def export_csv_zip(request: Request):
+    """Exports state as a zip file with CSVs for all tables. Requires authentication."""
+    _require_auth(request)
     state = get_state()
     zip_stream = export_state_to_csv_zip(state)
     return StreamingResponse(
@@ -887,22 +908,33 @@ def get_current_user_api(request: Request):
 # Admin User Management APIs
 # ==========================================
 
-def _require_admin(request: Request) -> Dict:
-    """Helper: extracts and verifies token, raises 403 if not admin."""
+def _extract_token(request: Request) -> str:
+    """Extracts Bearer token from Authorization header or X-Auth-Token header."""
     auth_header = request.headers.get("Authorization", "")
-    token = ""
     if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-    elif "X-Auth-Token" in request.headers:
-        token = request.headers["X-Auth-Token"].strip()
+        return auth_header[7:].strip()
+    if "X-Auth-Token" in request.headers:
+        return request.headers["X-Auth-Token"].strip()
+    return ""
 
+
+def _require_auth(request: Request) -> Dict:
+    """Helper: extracts and verifies token, raises 401 if not authenticated."""
+    token = _extract_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required. Please log in.")
     try:
         user = verify_session_token(token)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
-
     if not user:
-        raise HTTPException(status_code=401, detail="Authentication required.")
+        raise HTTPException(status_code=401, detail="Session expired or invalid. Please log in again.")
+    return user
+
+
+def _require_admin(request: Request) -> Dict:
+    """Helper: extracts and verifies token, raises 403 if not admin."""
+    user = _require_auth(request)
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required.")
     return user
@@ -1065,24 +1097,27 @@ async def handle_inbound_webhook(request: Request):
     }
 
 @app.get("/api/webhooks/logs")
-def get_webhook_logs_api():
-    """Returns recent webhook activity logs."""
+def get_webhook_logs_api(request: Request):
+    """Returns recent webhook activity logs. Requires authentication."""
+    _require_auth(request)
     return {
         "success": True,
         "logs": _get_webhook_logs()
     }
 
 @app.post("/api/webhooks/clear-logs")
-def clear_webhook_logs_api():
-    """Clears webhook activity logs."""
+def clear_webhook_logs_api(request: Request):
+    """Clears webhook activity logs. Requires authentication."""
+    _require_auth(request)
     clear_webhook_logs()
     return {"success": True, "message": "Webhook activity logs cleared."}
 
 @app.post("/api/webhooks/test")
 async def trigger_test_webhook(request: Request):
     """
-    Simulates a Google Form or third-party webhook submission for testing.
+    Simulates a Google Form or third-party webhook submission for testing. Requires authentication.
     """
+    _require_auth(request)
     body = {}
     try:
         body = await request.json()
@@ -1148,7 +1183,8 @@ async def trigger_test_webhook(request: Request):
 
 @app.get("/api/webhooks/script")
 def get_google_apps_script_api(request: Request):
-    """Returns copy-paste ready Google Apps Script tailored to current host."""
+    """Returns copy-paste ready Google Apps Script tailored to current host. Requires authentication."""
+    _require_auth(request)
     host = request.headers.get("host") or "localhost:5000"
     scheme = "https" if "https" in request.headers.get("x-forwarded-proto", "") else "http"
     base_url = f"{scheme}://{host}"
