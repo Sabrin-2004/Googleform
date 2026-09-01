@@ -94,16 +94,14 @@
 
   async function apiFetch(endpoint, options = {}){
     options.headers = options.headers || {};
-    if(!authToken){
-      authToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || '';
-    }
-    if(authToken){
+    const currentToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || (typeof window !== 'undefined' && window.GCC_TOKEN) || authToken || '';
+    if(currentToken){
       if(options.headers instanceof Headers){
-        options.headers.set('Authorization', `Bearer ${authToken}`);
-        options.headers.set('X-Auth-Token', authToken);
+        options.headers.set('Authorization', `Bearer ${currentToken}`);
+        options.headers.set('X-Auth-Token', currentToken);
       } else {
-        options.headers['Authorization'] = `Bearer ${authToken}`;
-        options.headers['X-Auth-Token'] = authToken;
+        options.headers['Authorization'] = `Bearer ${currentToken}`;
+        options.headers['X-Auth-Token'] = currentToken;
       }
     }
     try {
@@ -633,9 +631,7 @@
         try {
           const formData = new FormData();
           formData.append('file', _stagedCredsFile);
-          const res = await fetch('/api/credentials/upload', { method: 'POST', body: formData });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.detail || 'Upload failed');
+          const data = await apiFetch('/api/credentials/upload', { method: 'POST', body: formData });
           Toast.success(data.message || 'Credentials activated!');
           _stagedCredsFile = null;
           const stagedEl = document.getElementById('creds-staged-name');
@@ -714,7 +710,7 @@
       newCompanyName = ''
     } = options;
 
-    let appended = 0, updated = 0, skipped = 0, flagged = 0, sheetsProcessed = 0;
+    let appended = 0, updated = 0, skipped = 0, flagged = 0, deleted = 0, sheetsProcessed = 0;
     const conflicts = [];
     
     if(destination === 'create_new' && newCompanyName){
@@ -859,7 +855,7 @@
     await saveState(true);
     return {
       message: `Processed ${sheetsProcessed} sheet(s): ${appended} appended, ${updated} updated, ${skipped} skipped, ${flagged} flagged.`,
-      counts: { appended, updated, skipped, flagged, sheets_processed: sheetsProcessed },
+      counts: { appended, updated, skipped, flagged, deleted, sheets_processed: sheetsProcessed },
       conflicts
     };
   }
@@ -2048,6 +2044,7 @@
                 <label>Sync Strategy</label>
                 <select id="gs-sync-mode">
                   <option value="merge">Merge & Update</option>
+                  <option value="delete_merge">Delete & Merge</option>
                   <option value="replace">Replace All</option>
                 </select>
               </div>
@@ -2148,6 +2145,7 @@
               <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Import Strategy</label>
               <select id="upload-mode-select">
                 <option value="merge">Merge & Update</option>
+                <option value="delete_merge">Delete & Merge</option>
                 <option value="append">Append Only (New IDs)</option>
                 <option value="replace">Replace All Existing</option>
               </select>
@@ -2211,7 +2209,7 @@
           </div>
 
           ${persistentUploadStatus && persistentUploadStatus.counts ? `
-            <div class="gcc-metrics-container">
+          <div class="gcc-metrics-container">
               <div class="gcc-metric-card appended">
                 <div class="gcc-metric-val">+${persistentUploadStatus.counts.appended || 0}</div>
                 <div class="gcc-metric-label">Appended</div>
@@ -2220,6 +2218,11 @@
                 <div class="gcc-metric-val">${persistentUploadStatus.counts.updated || 0}</div>
                 <div class="gcc-metric-label">Updated</div>
               </div>
+              ${(persistentUploadStatus.counts.deleted || 0) > 0 ? `
+              <div class="gcc-metric-card flagged" style="background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.35);">
+                <div class="gcc-metric-val" style="color:#ef4444;">-${persistentUploadStatus.counts.deleted}</div>
+                <div class="gcc-metric-label">Removed</div>
+              </div>` : ''}
               <div class="gcc-metric-card skipped">
                 <div class="gcc-metric-val">${persistentUploadStatus.counts.skipped || 0}</div>
                 <div class="gcc-metric-label">Excluded</div>
@@ -3471,9 +3474,8 @@ function onFormSubmit(e) {
               if(dateEnd) formData.append('date_end', dateEnd);
               if(newCompanyName) formData.append('new_company_name', newCompanyName);
 
-              const res = await fetch('/api/upload', {method: 'POST', body: formData});
-              const json = await res.json();
-              if(res.ok && json.success){
+              const json = await apiFetch('/api/upload', {method: 'POST', body: formData});
+              if(json && json.success){
                 const latest = await apiFetch('/api/data');
                 state = latest;
                 localStorage.setItem('gcc-data', JSON.stringify(state));

@@ -139,6 +139,39 @@ def get_credentials_info() -> Dict[str, Any]:
         "filePath": os.path.basename(creds_path) if (creds_path and os.path.exists(creds_path)) else creds_path
     }
 
+_clock_skew_adjusted = False
+
+def sync_system_clock_skew():
+    """
+    Synchronizes local google.auth time with Google servers if local clock is skewed.
+    Prevents 'invalid_grant: Invalid JWT Signature' errors caused by local machine clock drift.
+    """
+    global _clock_skew_adjusted
+    try:
+        import email.utils
+        import google.auth._helpers
+        import urllib.request
+
+        req = urllib.request.Request("https://www.google.com", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            server_date = resp.headers.get("Date")
+            if server_date:
+                server_dt = email.utils.parsedate_to_datetime(server_date).astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                local_dt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                offset_seconds = (server_dt - local_dt).total_seconds()
+                
+                if abs(offset_seconds) > 15:
+                    orig_utcnow = getattr(google.auth._helpers, '_orig_utcnow', None)
+                    if orig_utcnow is None:
+                        orig_utcnow = google.auth._helpers.utcnow
+                        google.auth._helpers._orig_utcnow = orig_utcnow
+                    
+                    google.auth._helpers.utcnow = lambda: orig_utcnow() + datetime.timedelta(seconds=offset_seconds)
+                    logger.info(f"Synchronized Google Auth clock skew by {offset_seconds:.1f}s")
+                    _clock_skew_adjusted = True
+    except Exception as e:
+        logger.debug(f"Clock skew sync check skipped: {e}")
+
 def validate_and_test_credentials(creds_dict: Optional[Dict[str, Any]] = None, sheet_id: Optional[str] = None) -> Tuple[bool, str, Dict[str, Any]]:
     """
     Validates a Service Account credentials object or the currently loaded credentials.
@@ -157,6 +190,14 @@ def validate_and_test_credentials(creds_dict: Optional[Dict[str, Any]] = None, s
 
     if creds_dict.get('type') != 'service_account':
         return False, f"Invalid credential type '{creds_dict.get('type')}'. Expected 'service_account'.", {}
+
+    # Sanitize private_key if newlines were escaped
+    if isinstance(creds_dict.get('private_key'), str):
+        if '\\n' in creds_dict['private_key'] and '\n' not in creds_dict['private_key']:
+            creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+
+    # Automatically compensate for machine clock drift
+    sync_system_clock_skew()
 
     try:
         from google.oauth2.service_account import Credentials
@@ -211,6 +252,8 @@ def sync_via_service_account(sheet_id: str, creds_path: str) -> Tuple[bool, str,
     try:
         import gspread
         from google.oauth2.service_account import Credentials
+
+        sync_system_clock_skew()
 
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets.readonly',

@@ -637,12 +637,18 @@ def process_dataset_import(
       * 'timestamp_wins': Newer date/due wins
       * 'manual_review': Flags conflicting records for manual review queue
     - Dynamic Import Destinations: 'all', 'register', 'decisions', 'priorities', 'create_new'
-    - Dynamic Import Strategies: 'merge', 'append', 'replace'
-    - Detailed feedback metrics (appended, updated, skipped, flagged, per-sheet breakdown)
+    - Dynamic Import Strategies: 'merge', 'append', 'replace', 'delete_merge'
+      * 'delete_merge': Like 'merge' but also removes dashboard records absent from the CSV
+    - Detailed feedback metrics (appended, updated, skipped, flagged, deleted, per-sheet breakdown)
     """
     dest_key = normalize_destination_key(destination)
     mode_key = str(mode).strip().lower() if mode else "merge"
     strategy_key = str(conflict_strategy).strip().lower() if conflict_strategy else "incoming_wins"
+
+    # delete_merge always preserves dashboard edits: only fill blank dashboard fields
+    # from the CSV — never overwrite a value the user has already set in the dashboard.
+    if mode_key == "delete_merge":
+        strategy_key = "existing_wins"
 
     # Tracking counters and metadata
     metrics = {
@@ -651,6 +657,7 @@ def process_dataset_import(
         "merged": 0,
         "skipped": 0,
         "flagged": 0,
+        "deleted": 0,
         "sheets_processed": 0,
         "actions": 0,
         "decisions": 0,
@@ -906,6 +913,42 @@ def process_dataset_import(
                 current_state["decisions"] = ctx.new_decisions
             if ctx.new_priorities:
                 current_state["priorities"] = ctx.new_priorities
+    elif mode_key == "delete_merge":
+        # Merge + delete unmatched: Remove any existing record that was NOT matched/updated
+        # by an incoming CSV row. Dashboard-only edits on MATCHED records are preserved.
+        if dest_key in ("register", "all", "create_new"):
+            # Keep matched records (already updated in-place) + new appended records
+            kept_actions = [
+                a for idx, a in enumerate(ctx.actions_list)
+                if idx in ctx.matched_actions
+            ]
+            deleted_actions = len(ctx.actions_list) - len(kept_actions)
+            metrics["deleted"] += deleted_actions
+            current_state["actions"] = kept_actions + ctx.new_actions
+        if dest_key in ("decisions", "all"):
+            kept_decisions = [
+                d for idx, d in enumerate(ctx.decisions_list)
+                if idx in ctx.matched_decisions
+            ]
+            deleted_decisions = len(ctx.decisions_list) - len(kept_decisions)
+            metrics["deleted"] += deleted_decisions
+            current_state["decisions"] = kept_decisions + ctx.new_decisions
+        if dest_key in ("priorities", "all"):
+            kept_priorities = [
+                p for idx, p in enumerate(ctx.priorities_list)
+                if idx in ctx.matched_priorities
+            ]
+            deleted_priorities = len(ctx.priorities_list) - len(kept_priorities)
+            metrics["deleted"] += deleted_priorities
+            current_state["priorities"] = kept_priorities + ctx.new_priorities
+        if dest_key == "create_new":
+            # For create_new, only prune actions belonging to the target company
+            other_actions = [a for a in current_state.get("actions", []) if a.get("company") != target_company]
+            kept_company_actions = [
+                a for idx, a in enumerate(ctx.actions_list)
+                if idx in ctx.matched_actions and a.get("company") == target_company
+            ]
+            current_state["actions"] = other_actions + kept_company_actions + ctx.new_actions
     else:
         if ctx.new_actions:
             current_state["actions"] = current_state.get("actions", []) + ctx.new_actions

@@ -705,6 +705,8 @@ async def upload_files(
         parts.append(f"{metrics['updated']} record(s) updated")
     if metrics["merged"] and not metrics["updated"]:
         parts.append(f"{metrics['merged']} identical record(s) matched")
+    if metrics.get("deleted"):
+        parts.append(f"{metrics['deleted']} record(s) removed (not in CSV)")
     if metrics["skipped"]:
         parts.append(f"{metrics['skipped']} record(s) skipped below threshold")
     if metrics["flagged"]:

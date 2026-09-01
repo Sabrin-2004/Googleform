@@ -1,0 +1,2853 @@
+{
+  "lastUpdated": "2026-09-01T12:33:03.219314+00:00",
+  "settings": {
+    "colors": {
+      "attention": "#E5484D",
+      "progress": "#4C9AFF",
+      "done": "#3DD68C",
+      "hold": "#5A5F6B",
+      "future": "#5A5F6B",
+      "text": "#EDEFF3",
+      "muted": "#8B909C",
+      "tableText": "#EDEFF3",
+      "labelText": "#5E636F",
+      "tableHeaderText": "#5E636F"
+    },
+    "companyColors": {
+      "Pranik": "#3FA796",
+      "Aarna": "#E0A458",
+      "Miraee": "#8B7FD1",
+      "Abhee": "#E0705C",
+      "RedT": "#5B8DEF",
+      "Casa Monde": "#C77DD0",
+      "abhi": "#D68BB0",
+      "arna": "#FF9F1C",
+      "miraa": "#2EC4B6",
+      "edT": "#3FA796"
+    },
+    "companies": [
+      {
+        "id": "Pranik",
+        "name": "Pranik"
+      },
+      {
+        "id": "Aarna",
+        "name": "Aarna"
+      },
+      {
+        "id": "Miraee",
+        "name": "Miraee"
+      },
+      {
+        "id": "Abhee",
+        "name": "Abhee"
+      },
+      {
+        "id": "RedT",
+        "name": "RedT"
+      },
+      {
+        "id": "Casa Monde",
+        "name": "Casa Monde"
+      },
+      {
+        "id": "abhi",
+        "name": "abhi"
+      },
+      {
+        "id": "arna",
+        "name": "arna"
+      },
+      {
+        "id": "miraa",
+        "name": "miraa"
+      },
+      {
+        "id": "edT",
+        "name": "edT"
+      }
+    ],
+    "statuses": [
+      "Blocked",
+      "Delayed",
+      "On Hold",
+      "WIP",
+      "To Start",
+      "Planned",
+      "To Plan",
+      "Future",
+      "Done"
+    ],
+    "statusBuckets": {
+      "Blocked": "attention",
+      "Delayed": "attention",
+      "On Hold": "hold",
+      "WIP": "progress",
+      "To Start": "progress",
+      "Planned": "progress",
+      "To Plan": "progress",
+      "Future": "future",
+      "Done": "done"
+    },
+    "columns": [
+      {
+        "key": "company",
+        "label": "Company",
+        "visible": true
+      },
+      {
+        "key": "function",
+        "label": "Function",
+        "visible": true
+      },
+      {
+        "key": "item",
+        "label": "Item",
+        "visible": true
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "visible": true
+      },
+      {
+        "key": "founderDependency",
+        "label": "Founder Dependency",
+        "visible": true
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "visible": true
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+        "visible": false
+      }
+    ],
+    "decisionColumns": [
+      {
+        "key": "decision",
+        "label": "Decision",
+        "visible": true
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "visible": true
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "visible": true
+      },
+      {
+        "key": "founderDependency",
+        "label": "Founder Dependency",
+        "visible": false
+      },
+      {
+        "key": "impact",
+        "label": "Impact if delayed",
+        "visible": true
+      },
+      {
+        "key": "deadline",
+        "label": "Deadline",
+        "visible": false
+      },
+      {
+        "key": "nextReview",
+        "label": "Next Review",
+        "visible": false
+      }
+    ],
+    "kpis": [
+      {
+        "id": "bucket:attention",
+        "label": "Needs attention",
+        "visible": true
+      },
+      {
+        "id": "bucket:hold",
+        "label": "On hold",
+        "visible": true
+      },
+      {
+        "id": "bucket:progress",
+        "label": "In progress",
+        "visible": true
+      },
+      {
+        "id": "bucket:done",
+        "label": "Done",
+        "visible": true
+      }
+    ],
+    "emphasis": {},
+    "pin": "",
+    "tabs": [
+      {
+        "key": "overview",
+        "label": "Overview",
+        "visible": true
+      },
+      {
+        "key": "register",
+        "label": "Register",
+        "visible": true
+      },
+      {
+        "key": "decisions",
+        "label": "Decisions",
+        "visible": true
+      },
+      {
+        "key": "priorities",
+        "label": "Priorities",
+        "visible": true
+      },
+      {
+        "key": "data",
+        "label": "Data",
+        "visible": true
+      },
+      {
+        "key": "webhooks",
+        "label": "Webhooks",
+        "visible": false
+      },
+      {
+        "key": "settings",
+        "label": "Settings",
+        "visible": true
+      }
+    ],
+    "overviewSections": {
+      "companyHealth": true,
+      "needsAttention": true,
+      "founderReview": true,
+      "decisionQueue": true
+    },
+    "spotlightStatuses": [
+      "Blocked",
+      "Delayed",
+      "On Hold"
+    ],
+    "googleSheets": {
+      "sheetId": "1alUCBe5MRRZYp6hAcKuLsf0YAEhNx8h-s7UQOizgTfg",
+      "target": "all",
+      "autoSyncIntervalMinutes": 0,
+      "lastSyncTime": "2026-09-01T12:33:03.217592+00:00",
+      "syncStatus": "success",
+      "syncMessage": "Synced 0 record(s) (0 new, 0 updated) across 5 sheet(s) (32 skipped below threshold)."
+    },
+    "webhookSettings": {
+      "enabled": true,
+      "secretKey": "",
+      "defaultTarget": "all",
+      "autoApprove": true
+    }
+  },
+  "actions": [
+    {
+      "id": "a_dde5d40f",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Is this a Priority in Phase-1?",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "Decision",
+      "due": "?",
+      "comments": "Is this a Priority in Phase-1?"
+    },
+    {
+      "id": "a_4144888b",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Is this a Priority in Phase-1?",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "Decision",
+      "due": "?",
+      "comments": "Is this a Priority in Phase-1?"
+    },
+    {
+      "id": "a_13ef3ebc",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Is this a Priority in Phase-1?",
+      "status": "On Hold",
+      "owner": "",
+      "founderDependency": "Decision",
+      "due": "?",
+      "comments": "Is this a Priority in Phase-1?"
+    },
+    {
+      "id": "a_876eecac",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Is this a Priority in Phase-1?",
+      "status": "On Hold",
+      "owner": "",
+      "founderDependency": "Decision",
+      "due": "?",
+      "comments": "Is this a Priority in Phase-1?"
+    },
+    {
+      "id": "a_5e55815b",
+      "company": "pranik",
+      "function": "Content",
+      "item": "Marketplace",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "Decision",
+      "due": "?",
+      "comments": ""
+    },
+    {
+      "id": "a_2c56c54b",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Decision",
+      "status": "Done",
+      "owner": "Mayank",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_e674d503",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Decision",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_453dec47",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Decision",
+      "status": "Future",
+      "owner": "Kiran",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_452c354a",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Decision",
+      "status": "Future",
+      "owner": "Kiran",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_c9c5c8dc",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Marketing",
+      "status": "Future",
+      "owner": "Mayank",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_e56516c4",
+      "company": "pranik",
+      "function": "People",
+      "item": "Marketing",
+      "status": "Future",
+      "owner": "Geetika, Karthik",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_bfcfb029",
+      "company": "pranik",
+      "function": "Content",
+      "item": "Content",
+      "status": "Future",
+      "owner": "Karthik",
+      "founderDependency": "Clarity",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_6ff7688b",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Future",
+      "owner": "Natesh",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_a15fb12d",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Future",
+      "owner": "",
+      "founderDependency": "Clarity",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_e740bfc1",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Future",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_943d8d7d",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Future",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_316f400b",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Future",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_7a05a8ce",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "12-Jan",
+      "comments": ""
+    },
+    {
+      "id": "a_f34880d5",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Deployed CDSS & Scribe. Started getting Doc-patient recordings",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "9-Jan",
+      "comments": "Deployed CDSS & Scribe. Started getting Doc-patient recordings"
+    },
+    {
+      "id": "a_bdec4f4d",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "GTM",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f87134f8",
+      "company": "pranik",
+      "function": "People",
+      "item": "People",
+      "status": "Done",
+      "owner": "Prasad",
+      "founderDependency": "None",
+      "due": "12-Dec",
+      "comments": ""
+    },
+    {
+      "id": "a_905973a6",
+      "company": "pranik",
+      "function": "Ops",
+      "item": "Metrics",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "27-Jan",
+      "comments": ""
+    },
+    {
+      "id": "a_7bc6b6b6",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Praveen",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_615de15e",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Metrics",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_80581e44",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kumar",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_451a3427",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kumar",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_eeb393a8",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Koundinya",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_454a2121",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b85a2978",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Koundinya",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_625d6b1f",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Partnerships",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_0dcc7f89",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kumar",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_09ad5a61",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kumar",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_07e4bfa9",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kumar",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_dc2a5589",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Koundinya",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_5ba781aa",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kumar",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_00d7576a",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Start with base model, collect data, build SLMs, continuous improvement\n113 cases, 3000 entries: chats, \nCase Cost charged by doc- Rs.500/-",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "16-Mar",
+      "comments": "Start with base model, collect data, build SLMs, continuous improvement\n113 cases, 3000 entries: chats, \nCase Cost charged by doc- Rs.500/-"
+    },
+    {
+      "id": "a_b154775e",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "GTM",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "26-Dec",
+      "comments": ""
+    },
+    {
+      "id": "a_9c96c38e",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_4befe2e5",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_0bf7fcd6",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_8112bfbc",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Pilot",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_57f4a145",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Pilot",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_1b196822",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Pilot",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_fa1f2849",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Pilot",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_bf10820a",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Bhuvan",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_d1bf98d8",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_9a2c396c",
+      "company": "pranik",
+      "function": "People",
+      "item": "People",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_63c3d384",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Koundinya",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_dd6f8749",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Natesh",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_46aa734d",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Srujan",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_3064b7d2",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Pranik Centres",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "To Review",
+      "due": "12-Dec",
+      "comments": ""
+    },
+    {
+      "id": "a_c414509a",
+      "company": "pranik",
+      "function": "People",
+      "item": "To Review",
+      "status": "Delayed",
+      "owner": "Kiran",
+      "founderDependency": "To Review",
+      "due": "12-Dec",
+      "comments": ""
+    },
+    {
+      "id": "a_0796c5db",
+      "company": "pranik",
+      "function": "Ops",
+      "item": "To Review",
+      "status": "WIP",
+      "owner": "Kiran",
+      "founderDependency": "To Review",
+      "due": "28-Jan",
+      "comments": ""
+    },
+    {
+      "id": "a_a1d38c1c",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Samiksha",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_58945d23",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Ongoing",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_fabac7d2",
+      "company": "pranik",
+      "function": "General",
+      "item": "Decision",
+      "status": "Blocked",
+      "owner": "Praveen",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_cb3c3bb9",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "To Start",
+      "owner": "Praveen",
+      "founderDependency": "Direct",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_e39399a4",
+      "company": "pranik",
+      "function": "Demo",
+      "item": "Ozontel is vendor for VoIP call",
+      "status": "Done",
+      "owner": "Natesh",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": "Ozontel is vendor for VoIP call"
+    },
+    {
+      "id": "a_57b8365f",
+      "company": "pranik",
+      "function": "Demo",
+      "item": "Demo",
+      "status": "Done",
+      "owner": "Natesh",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_527c65e4",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Srujan",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_8313b9ea",
+      "company": "pranik",
+      "function": "Demo",
+      "item": "Process",
+      "status": "WIP",
+      "owner": "Natesh, Samiksha, Jaydeep",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_85fad3db",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_577210b9",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Partnerships",
+      "status": "WIP",
+      "owner": "Karthik",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_9d262a8a",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_a5a63195",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Decision",
+      "status": "To Start",
+      "owner": "Kiran",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": "1rx"
+    },
+    {
+      "id": "a_c645e742",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Pradyumna",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_60e5d401",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_48197c9f",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_06b59a6d",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "WIP",
+      "owner": "Samiksha, Jaydeep",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_91c808a4",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Is this a Priority in Phase-1?",
+      "status": "WIP",
+      "owner": "Karthik",
+      "founderDependency": "To Review",
+      "due": "?",
+      "comments": "Is this a Priority in Phase-1?"
+    },
+    {
+      "id": "a_be8c505f",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "To Start",
+      "owner": "Pushkar",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_ad80a9cb",
+      "company": "pranik",
+      "function": "GTM",
+      "item": "Pilot",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_39f4f487",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Srujan",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b64c27d1",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Abhi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_26cc4bdc",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_0e00ea13",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Natesh",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_8a370112",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "WIP",
+      "owner": "Natesh",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_a6e7c910",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Natesh, Samiksha",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f5d78cb9",
+      "company": "pranik",
+      "function": "Product",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Natesh",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_facadb64",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Pradyumna",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_512919db",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Pradyumna",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_ed031bb0",
+      "company": "pranik",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Pradyumna",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_ddde959e",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "GTM",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "11-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_bcbcce89",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "GTM",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "11-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_64c4a3d3",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "UAE, India",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "11-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_866c12a1",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "UAE, India",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "11-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_de5415e1",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "GTM",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_d676b736",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_5ef0c1ca",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_5779cb9a",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_334973d6",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_29ae9c02",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_6b4998d5",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_30dc5273",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_cb753224",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_336a480f",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f48d6541",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_18c2bc51",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b1e5537a",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_de4c2b2a",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Teja",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_4a736d1c",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_1b68acfa",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_6a139a7e",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "Future",
+      "owner": "Vishwa, Saurav, Hemanth, Vamshi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_8fe45d66",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Vishwa",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_7696e912",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Vishwa",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_dd88dc4d",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Teja",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_28f5c99c",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_630b0d96",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "India",
+      "status": "Future",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_ff07c470",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "India",
+      "status": "WIP",
+      "owner": "Prasad",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_7a68e761",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "Ongoing",
+      "status": "WIP",
+      "owner": "Vamshi, Saurav",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_06734f8e",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Vishwa, Hemanth, Bhuvan",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_997c2714",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "17-Jun",
+      "comments": ""
+    },
+    {
+      "id": "a_077ea692",
+      "company": "abhi",
+      "function": "Product",
+      "item": "Product",
+      "status": "To Start",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_6c81df69",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "GTM",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f273d398",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_2109cbf3",
+      "company": "abhi",
+      "function": "GTM",
+      "item": "Exp. Creation",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_8ad42dc1",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_9ff6fee3",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Lakshmi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b134a2ba",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Jalpa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_0e49ce51",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Raghava",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_0d33c7d0",
+      "company": "arna",
+      "function": "ONDC",
+      "item": "24-Dec",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_29abe937",
+      "company": "arna",
+      "function": "ONDC",
+      "item": "5-Dec",
+      "status": "Done",
+      "owner": "Prasad",
+      "founderDependency": "None",
+      "due": "12-Dec",
+      "comments": ""
+    },
+    {
+      "id": "a_9924692e",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": "in vibe"
+    },
+    {
+      "id": "a_8825e164",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_9ddf5561",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_a2a84d73",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "22-Jan",
+      "comments": ""
+    },
+    {
+      "id": "a_bc576fff",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Integrate transit tourism opportunities into strategy",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": "Integrate transit tourism opportunities into strategy"
+    },
+    {
+      "id": "a_2c7ec8c5",
+      "company": "arna",
+      "function": "GTM",
+      "item": "22-Jan",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f8049790",
+      "company": "arna",
+      "function": "GTM",
+      "item": "22-Jan",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_be0090e5",
+      "company": "arna",
+      "function": "GTM",
+      "item": "24-Feb",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "2-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_5478cd9c",
+      "company": "arna",
+      "function": "Product",
+      "item": "1. Agentic Layer\n2. Voice\n3. Assigning tasks to Creatorprenuer\n4. Fintech & Monetisation\n5. Skilltech\n6. Marktech",
+      "status": "Done",
+      "owner": "Bhuvan",
+      "founderDependency": "None",
+      "due": "19-Feb",
+      "comments": "1. Agentic Layer\n2. Voice\n3. Assigning tasks to Creatorprenuer\n4. Fintech & Monetisation\n5. Skilltech\n6. Marktech"
+    },
+    {
+      "id": "a_d47416c8",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Prasad",
+      "founderDependency": "None",
+      "due": "17-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_270f2298",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "17-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_47e617dd",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "20-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_7b4313ef",
+      "company": "arna",
+      "function": "GTM",
+      "item": "27-Feb",
+      "status": "Done",
+      "owner": "Raghava",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b3aef35b",
+      "company": "arna",
+      "function": "GTM",
+      "item": "27-Feb",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_637cebfb",
+      "company": "arna",
+      "function": "GTM",
+      "item": "27-Feb",
+      "status": "Done",
+      "owner": "Lakshmi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_9d562133",
+      "company": "arna",
+      "function": "GTM",
+      "item": "27-Feb",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_d7ff65a6",
+      "company": "arna",
+      "function": "GTM",
+      "item": "27-Feb",
+      "status": "Done",
+      "owner": "Vamshi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_47fe5d05",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_998f5026",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Raghava",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_36eaf9f4",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_ca2e7db4",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "10-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_a39b2f6d",
+      "company": "arna",
+      "function": "GTM",
+      "item": "17-Mar",
+      "status": "Done",
+      "owner": "Vamshi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_6661e7a7",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "23-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_036b2051",
+      "company": "arna",
+      "function": "GTM",
+      "item": "DWTC, Expo City",
+      "status": "Done",
+      "owner": "Nikhil, Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_6110871e",
+      "company": "arna",
+      "function": "GTM",
+      "item": "trade license, entity registration,",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_7b7042d2",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Originals",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_ea3cc67f",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Logic given by Raghav to Hemanth\n\"APIs- Aikonic- Nikhil\nPdfs- Bulk Upload- Lakshmi\nCreators (100k)- App- Saurav\nScrapped Data- Transformer- Raghav\"",
+      "status": "Done",
+      "owner": "Raghav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b6a69bf9",
+      "company": "arna",
+      "function": "GTM",
+      "item": "1-Apr",
+      "status": "Done",
+      "owner": "Lakshmi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_25630c46",
+      "company": "arna",
+      "function": "GTM",
+      "item": "22-Jan",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_cd2aa8d3",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Jalpa",
+      "founderDependency": "None",
+      "due": "17-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_92ab394b",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Saurav, Vishwa",
+      "founderDependency": "None",
+      "due": "23-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_581145da",
+      "company": "arna",
+      "function": "Product",
+      "item": "High level done\nDetailed- tbd",
+      "status": "Done",
+      "owner": "Saurav, Vishwa",
+      "founderDependency": "None",
+      "due": "23-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_7fa4c16d",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_d112dcd9",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Bhuvan",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_9569f69e",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_92f4ceac",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_75fa0f8d",
+      "company": "arna",
+      "function": "GTM",
+      "item": "25-Apr",
+      "status": "Done",
+      "owner": "Karthik, Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_dc8311d0",
+      "company": "arna",
+      "function": "GTM",
+      "item": "25-Apr",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_73d047e0",
+      "company": "arna",
+      "function": "GTM",
+      "item": "25-Apr",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_bfb788bd",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Originals",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_1f3bd7bc",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Presented to Prasad. But needs more clarification on what GTM strategy to be drwan from it?",
+      "status": "Done",
+      "owner": "Raghav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_918e9d18",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Methodology to select sub-themes:\n1. Unique Experiences (white space identification)\n2. Demand-Driven (Data-Driven-  trend-following)\n3. Self-Curated by CPs ((curated originals)",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_eef98919",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_3181d541",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_06b4196a",
+      "company": "arna",
+      "function": "GTM",
+      "item": "350k Total Businesse\nSupplier: 347k- Viator (Outdated)- Refresh to get new data\nLakshmi's Team: 3k (Outdated)\n100k Creators\n134 in the db",
+      "status": "Done",
+      "owner": "Raghav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_8118ee8e",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_3d19e7f8",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_5fe3eb47",
+      "company": "arna",
+      "function": "GTM",
+      "item": "5-Dec",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_234eafa8",
+      "company": "arna",
+      "function": "GTM",
+      "item": "5-Dec",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_00ca9269",
+      "company": "arna",
+      "function": "Content",
+      "item": "Content",
+      "status": "On Hold",
+      "owner": "Raghava",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_ed61211d",
+      "company": "arna",
+      "function": "Product",
+      "item": "Done by Hemanth",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "23-Jan",
+      "comments": "Done by Hemanth"
+    },
+    {
+      "id": "a_eadd2b1f",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "On Hold",
+      "owner": "Raghav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_143125b0",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_793fc431",
+      "company": "arna",
+      "function": "GTM",
+      "item": "20-Jan",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_8461fef8",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "On Hold",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f764640f",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "On Hold",
+      "owner": "Vishwa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_97112b12",
+      "company": "arna",
+      "function": "People",
+      "item": "People",
+      "status": "On Hold",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_cc6430a8",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "On Hold",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_a20eeb2a",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "On Hold",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f603adbc",
+      "company": "arna",
+      "function": "GTM",
+      "item": "27-Mar",
+      "status": "On Hold",
+      "owner": "Saurav, Vamshi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_de896d29",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "Future",
+      "owner": "Sailaja",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_459484ab",
+      "company": "arna",
+      "function": "GTM",
+      "item": "1-Apr",
+      "status": "Future",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b20cdd90",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Suppliers",
+      "status": "Future",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f53ee8b4",
+      "company": "arna",
+      "function": "GTM",
+      "item": "22-Jan",
+      "status": "Done",
+      "owner": "Karthik",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_bf6bc25b",
+      "company": "arna",
+      "function": "GTM",
+      "item": "To be done with DWTC",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": "To be done with DWTC"
+    },
+    {
+      "id": "a_cec1e68e",
+      "company": "arna",
+      "function": "GTM",
+      "item": "27-Feb",
+      "status": "On Hold",
+      "owner": "Miten",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_5bba1b7d",
+      "company": "arna",
+      "function": "General",
+      "item": "24-Feb",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_2b0a7076",
+      "company": "arna",
+      "function": "GTM",
+      "item": "1. Social Media Creators\n2. Gig Workers\n3. People seeking additional income",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_699047b4",
+      "company": "arna",
+      "function": "GTM",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_4f319e11",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Suppliers",
+      "status": "On Hold",
+      "owner": "Mayank, Nikhil",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_18713ddd",
+      "company": "arna",
+      "function": "GTM",
+      "item": "Clarity",
+      "status": "On Hold",
+      "owner": "Vamshi",
+      "founderDependency": "Clarity",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_43f2b7de",
+      "company": "arna",
+      "function": "GTM",
+      "item": "18-Apr",
+      "status": "To Start",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_130d554f",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "To Start",
+      "owner": "Mridula, Amaan, Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_33675525",
+      "company": "arna",
+      "function": "Product",
+      "item": "UX flows",
+      "status": "WIP",
+      "owner": "Bhuvan",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_c59dcaf5",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "To Start",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_1c87e4bb",
+      "company": "arna",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Hemanth",
+      "founderDependency": "None",
+      "due": "17-Jun",
+      "comments": ""
+    },
+    {
+      "id": "a_98c40942",
+      "company": "arna",
+      "function": "General",
+      "item": "8-Jul",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_81c3989f",
+      "company": "arna",
+      "function": "General",
+      "item": "WIP",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_f183b899",
+      "company": "arna",
+      "function": "Product",
+      "item": "To Review",
+      "status": "WIP",
+      "owner": "Bhuvan",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_83b42960",
+      "company": "arna",
+      "function": "General",
+      "item": "46266",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_c4044f2c",
+      "company": "arna",
+      "function": "General",
+      "item": "46266",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_0b848c45",
+      "company": "arna",
+      "function": "General",
+      "item": "Raghav has the data of UAE businesses- 1500k. 50% are contactable 100k",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_1e197aee",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Learnings from Pranik Team",
+      "status": "Done",
+      "owner": "Rohith",
+      "founderDependency": "N",
+      "due": "16-Feb",
+      "comments": "Learnings from Pranik Team"
+    },
+    {
+      "id": "a_c2087e5c",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Rohith",
+      "founderDependency": "N",
+      "due": "16-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_31582e5a",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Rohith",
+      "founderDependency": "N",
+      "due": "16-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_bf7ff512",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Shashank",
+      "founderDependency": "N",
+      "due": "16-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_8db28d13",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Rohith",
+      "founderDependency": "N",
+      "due": "17-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_b912992a",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Sailaja",
+      "founderDependency": "N",
+      "due": "19-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_d3a44988",
+      "company": "miraa",
+      "function": "Product",
+      "item": "will be done Today (in 3 hours)",
+      "status": "Done",
+      "owner": "Rohith",
+      "founderDependency": "-",
+      "due": "19-Feb",
+      "comments": "will be done Today (in 3 hours)"
+    },
+    {
+      "id": "a_afcaab0d",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Supplier APIs, Functional APIs- Testing Metrics:\n1. Are the APIs working properly: All results, Coverage\n2. Competitiveness\n\nCategories, Connections to all these categories, & Depth",
+      "status": "Blocked",
+      "owner": "Teja",
+      "founderDependency": "-",
+      "due": "19-Feb",
+      "comments": "Supplier APIs, Functional APIs- Testing Metrics:\n1. Are the APIs working properly: All results, Coverage\n2. Competitiveness\n\nCategories, Connections to all these categories, & Depth"
+    },
+    {
+      "id": "a_0db18d9e",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Content",
+      "status": "WIP",
+      "owner": "PC",
+      "founderDependency": "-",
+      "due": "19-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_068b5d59",
+      "company": "miraa",
+      "function": "Content",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Sailaja",
+      "founderDependency": "Y",
+      "due": "19-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_85eb769f",
+      "company": "miraa",
+      "function": "Content",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Sunil",
+      "founderDependency": "Y",
+      "due": "19-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_21593625",
+      "company": "miraa",
+      "function": "Content",
+      "item": "To Review",
+      "status": "Done",
+      "owner": "Sailaja",
+      "founderDependency": "Y",
+      "due": "19-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_e9716ad7",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Rohith",
+      "founderDependency": "N",
+      "due": "19-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_326a7916",
+      "company": "miraa",
+      "function": "Service",
+      "item": "Basic features for conflict management are available. But Shallow agents to be made Deep thinking agent. Show, function-wise, which agents are doing this.",
+      "status": "WIP",
+      "owner": "Rohith",
+      "founderDependency": "-",
+      "due": "20-Feb",
+      "comments": "Basic features for conflict management are available. But Shallow agents to be made Deep thinking agent. Show, function-wise, which agents are doing this."
+    },
+    {
+      "id": "a_c483181d",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "Nishi",
+      "founderDependency": "None",
+      "due": "23-Feb",
+      "comments": ""
+    },
+    {
+      "id": "a_246eccf1",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Golden Dataset Creation- Mondee Data (~200h/day)",
+      "status": "To Start",
+      "owner": "Rohith",
+      "founderDependency": "None",
+      "due": "23-Feb",
+      "comments": "Golden Dataset Creation- Mondee Data (~200h/day)"
+    },
+    {
+      "id": "a_cd542954",
+      "company": "miraa",
+      "function": "Demo",
+      "item": "In excel:\n1. Which Categories, APIs, Agents we are using\n2. Usecases\n3. Results & Observations",
+      "status": "WIP",
+      "owner": "Rohith",
+      "founderDependency": "-",
+      "due": "24-Feb",
+      "comments": "In excel:\n1. Which Categories, APIs, Agents we are using\n2. Usecases\n3. Results & Observations"
+    },
+    {
+      "id": "a_a7424c0a",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Experiences",
+      "status": "Done",
+      "owner": "",
+      "founderDependency": "N",
+      "due": "5-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_6312c604",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "To Start",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "6-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_0ec57831",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Wrong tagging & Filtering",
+      "status": "Done",
+      "owner": "Rohith",
+      "founderDependency": "N",
+      "due": "16-Feb",
+      "comments": "Wrong tagging & Filtering"
+    },
+    {
+      "id": "a_9ec4e385",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Content",
+      "status": "WIP",
+      "owner": "PC",
+      "founderDependency": "-",
+      "due": "6-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_1f06b3ff",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Class: Basic, Economy, Business\nRefundable, Baggage, Seat Selection, Change\nBenchmarks: Expedia, Navan\n(Needed for Optimisation)",
+      "status": "WIP",
+      "owner": "PC",
+      "founderDependency": "-",
+      "due": "19-Feb",
+      "comments": "Class: Basic, Economy, Business\nRefundable, Baggage, Seat Selection, Change\nBenchmarks: Expedia, Navan\n(Needed for Optimisation)"
+    },
+    {
+      "id": "a_ebaa6387",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "Done",
+      "owner": "Shashank",
+      "founderDependency": "N",
+      "due": "6-Mar",
+      "comments": "UI"
+    },
+    {
+      "id": "a_2af2128a",
+      "company": "miraa",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "-",
+      "due": "8-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_c93c4ea6",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Content",
+      "status": "To Start",
+      "owner": "Sunil",
+      "founderDependency": "None",
+      "due": "10-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_7b9d644c",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Sabre NDC- all airlines to be enabled",
+      "status": "To Start",
+      "owner": "Sunil",
+      "founderDependency": "None",
+      "due": "10-Mar",
+      "comments": "Sabre NDC- all airlines to be enabled"
+    },
+    {
+      "id": "a_9f5869c0",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Content",
+      "status": "To Start",
+      "owner": "Teja",
+      "founderDependency": "None",
+      "due": "10-Mar",
+      "comments": ""
+    },
+    {
+      "id": "a_88f8fe15",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Sathish, Aacharya & PC to collaborate with Rohith to build models and not use the old way of flight search",
+      "status": "WIP",
+      "owner": "Satish",
+      "founderDependency": "None",
+      "due": "10-Mar",
+      "comments": "Sathish, Aacharya & PC to collaborate with Rohith to build models and not use the old way of flight search"
+    },
+    {
+      "id": "a_e48200da",
+      "company": "miraa",
+      "function": "Content",
+      "item": "Sathish, Aacharya & PC to collaborate with Rohith to build models and not use the old way of flight search",
+      "status": "To Start",
+      "owner": "Satish",
+      "founderDependency": "None",
+      "due": "10-Mar",
+      "comments": "Sathish, Aacharya & PC to collaborate with Rohith to build models and not use the old way of flight search"
+    },
+    {
+      "id": "a_b9c52097",
+      "company": "edT",
+      "function": "People",
+      "item": "3 proposals given",
+      "status": "WIP",
+      "owner": "Rohan",
+      "founderDependency": "N",
+      "due": "27-Jan",
+      "comments": "3 proposals given"
+    },
+    {
+      "id": "a_f7aa86c3",
+      "company": "edT",
+      "function": "Product",
+      "item": "Product",
+      "status": "WIP",
+      "owner": "",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a_b7669717",
+      "company": "edT",
+      "function": "People",
+      "item": "Decision",
+      "status": "Done",
+      "owner": "Prasad",
+      "founderDependency": "N",
+      "due": "",
+      "comments": ""
+    }
+  ],
+  "decisions": [],
+  "priorities": []
+}

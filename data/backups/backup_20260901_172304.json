@@ -1,0 +1,630 @@
+{
+  "lastUpdated": "2026-09-01T11:52:55.440080+00:00",
+  "settings": {
+    "colors": {
+      "attention": "#E5484D",
+      "progress": "#4C9AFF",
+      "done": "#3DD68C",
+      "hold": "#5A5F6B",
+      "future": "#5A5F6B",
+      "text": "#EDEFF3",
+      "muted": "#8B909C",
+      "tableText": "#EDEFF3",
+      "labelText": "#5E636F",
+      "tableHeaderText": "#5E636F"
+    },
+    "companyColors": {
+      "Pranik": "#3FA796",
+      "Aarna": "#E0A458",
+      "Miraee": "#8B7FD1",
+      "Abhee": "#E0705C",
+      "RedT": "#5B8DEF",
+      "Casa Monde": "#C77DD0"
+    },
+    "companies": [
+      {
+        "id": "Pranik",
+        "name": "Pranik"
+      },
+      {
+        "id": "Aarna",
+        "name": "Aarna"
+      },
+      {
+        "id": "Miraee",
+        "name": "Miraee"
+      },
+      {
+        "id": "Abhee",
+        "name": "Abhee"
+      },
+      {
+        "id": "RedT",
+        "name": "RedT"
+      },
+      {
+        "id": "Casa Monde",
+        "name": "Casa Monde"
+      }
+    ],
+    "statuses": [
+      "Blocked",
+      "Delayed",
+      "On Hold",
+      "WIP",
+      "To Start",
+      "Planned",
+      "To Plan",
+      "Future",
+      "Done"
+    ],
+    "statusBuckets": {
+      "Blocked": "attention",
+      "Delayed": "attention",
+      "On Hold": "hold",
+      "WIP": "progress",
+      "To Start": "progress",
+      "Planned": "progress",
+      "To Plan": "progress",
+      "Future": "future",
+      "Done": "done"
+    },
+    "columns": [
+      {
+        "key": "company",
+        "label": "Company",
+        "visible": true
+      },
+      {
+        "key": "function",
+        "label": "Function",
+        "visible": true
+      },
+      {
+        "key": "item",
+        "label": "Item",
+        "visible": true
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "visible": true
+      },
+      {
+        "key": "founderDependency",
+        "label": "Founder Dependency",
+        "visible": true
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "visible": true
+      },
+      {
+        "key": "comments",
+        "label": "Comments",
+        "visible": false
+      }
+    ],
+    "decisionColumns": [
+      {
+        "key": "decision",
+        "label": "Decision",
+        "visible": true
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "visible": true
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "visible": true
+      },
+      {
+        "key": "founderDependency",
+        "label": "Founder Dependency",
+        "visible": false
+      },
+      {
+        "key": "impact",
+        "label": "Impact if delayed",
+        "visible": true
+      },
+      {
+        "key": "deadline",
+        "label": "Deadline",
+        "visible": false
+      },
+      {
+        "key": "nextReview",
+        "label": "Next Review",
+        "visible": false
+      }
+    ],
+    "kpis": [
+      {
+        "id": "bucket:attention",
+        "label": "Needs attention",
+        "visible": true
+      },
+      {
+        "id": "bucket:hold",
+        "label": "On hold",
+        "visible": true
+      },
+      {
+        "id": "bucket:progress",
+        "label": "In progress",
+        "visible": true
+      },
+      {
+        "id": "bucket:done",
+        "label": "Done",
+        "visible": true
+      }
+    ],
+    "emphasis": {},
+    "pin": "",
+    "tabs": [
+      {
+        "key": "overview",
+        "label": "Overview",
+        "visible": true
+      },
+      {
+        "key": "register",
+        "label": "Register",
+        "visible": true
+      },
+      {
+        "key": "decisions",
+        "label": "Decisions",
+        "visible": true
+      },
+      {
+        "key": "priorities",
+        "label": "Priorities",
+        "visible": true
+      },
+      {
+        "key": "data",
+        "label": "Data",
+        "visible": true
+      },
+      {
+        "key": "webhooks",
+        "label": "Webhooks",
+        "visible": true
+      },
+      {
+        "key": "settings",
+        "label": "Settings",
+        "visible": true
+      }
+    ],
+    "overviewSections": {
+      "companyHealth": true,
+      "needsAttention": true,
+      "founderReview": true,
+      "decisionQueue": true
+    },
+    "spotlightStatuses": [
+      "Blocked",
+      "Delayed",
+      "On Hold"
+    ],
+    "googleSheets": {
+      "sheetId": "1alUCBe5MRRZYp6hAcKuLsf0YAEhNx8h-s7UQOizgTfg",
+      "target": "all",
+      "autoSyncIntervalMinutes": 0,
+      "lastSyncTime": null,
+      "syncStatus": "idle",
+      "syncMessage": ""
+    },
+    "webhookSettings": {
+      "enabled": true,
+      "secretKey": "",
+      "defaultTarget": "all",
+      "autoApprove": true
+    }
+  },
+  "actions": [
+    {
+      "id": "a1",
+      "company": "Aarna",
+      "function": "Content",
+      "item": "Creatorpreneur Content Studio (CCS) Plan",
+      "status": "Done",
+      "owner": "Saurav",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a2",
+      "company": "Aarna",
+      "function": "Content",
+      "item": "Medical Tourism Database",
+      "status": "Done",
+      "owner": "Lakshmi",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a3",
+      "company": "Aarna",
+      "function": "Content",
+      "item": "MICE Database",
+      "status": "Done",
+      "owner": "Jalpa",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a4",
+      "company": "Aarna",
+      "function": "Content",
+      "item": "Experiences database",
+      "status": "Done",
+      "owner": "Raghava",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a5",
+      "company": "Aarna",
+      "function": "ONDC",
+      "item": "Direction on what we will share (Videos, Images) as a seller app.",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a6",
+      "company": "Aarna",
+      "function": "ONDC",
+      "item": "ONDC (Experiences) Team formation",
+      "status": "Done",
+      "owner": "Prasad",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a7",
+      "company": "Aarna",
+      "function": "Product",
+      "item": "AI-driven personalized recommendation system",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": "in vibe"
+    },
+    {
+      "id": "a8",
+      "company": "Aarna",
+      "function": "Product",
+      "item": "Q&A capability for real-time product enquiries",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a9",
+      "company": "Aarna",
+      "function": "Product",
+      "item": "Quantitative metrics dashboard (products, transactions)",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a10",
+      "company": "Aarna",
+      "function": "Product",
+      "item": "Resolve Phase-1 Gemini integration issues and retrain agents with new input format requirements",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a11",
+      "company": "Aarna",
+      "function": "GTM",
+      "item": "Develop detailed demand-side GTM strategy",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": "Integrate transit tourism opportunities into strategy"
+    },
+    {
+      "id": "a12",
+      "company": "Aarna",
+      "function": "GTM",
+      "item": "B2B distribution Plan",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a13",
+      "company": "Aarna",
+      "function": "GTM",
+      "item": "Detailed execution plan at vision level",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a14",
+      "company": "Aarna",
+      "function": "GTM",
+      "item": "Plan for Workshops to be conducted- DS & ES (Telangana & Andhra)- All 15 categories??",
+      "status": "Done",
+      "owner": "Kiran",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a15",
+      "company": "Aarna",
+      "function": "Product",
+      "item": "Aarna ES Demo (Vibe)- Incorporate feedback",
+      "status": "Done",
+      "owner": "Bhuvan",
+      "founderDependency": "None",
+      "due": "",
+      "comments": "1. Agentic Layer\\n2. Voice\\n3. Assigning tasks to Creatorprenuer"
+    },
+    {
+      "id": "a54",
+      "company": "Aarna",
+      "function": "GTM",
+      "item": "Digital Stores Onboarding Plan- Creatorpreneur Digital Store Owner (C. DSO)",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "Delayed",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a55",
+      "company": "Aarna",
+      "function": "GTM",
+      "item": "Creatorpreneur Onboarding Plan- Social Commerce",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "Delayed",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a73",
+      "company": "Aarna",
+      "function": "GTM",
+      "item": "Going to market with Aarna OS (ES incl)- Vibe Feature Review",
+      "status": "To Start",
+      "owner": "Kiran",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a80",
+      "company": "Aarna",
+      "function": "Product",
+      "item": "finalize screens showing business/catalog/pricing/inventory with examples for all 5 verticals",
+      "status": "WIP",
+      "owner": "Bhuvan",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a87",
+      "company": "Abhee",
+      "function": "GTM",
+      "item": "UAE: Execution Plan & P&L",
+      "status": "Done",
+      "owner": "Nikhil",
+      "founderDependency": "None",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a96",
+      "company": "Abhee",
+      "function": "Product",
+      "item": "Feedback: Explore Section Logic & Trips Section Design Screens",
+      "status": "To Start",
+      "owner": "Vishwa",
+      "founderDependency": "To Review",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a108",
+      "company": "Abhee",
+      "function": "Product",
+      "item": "Trip Flows: Booking history in the trip section & Pre-trip recommendations",
+      "status": "WIP",
+      "owner": "Vishwa",
+      "founderDependency": "Ongoing",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a121",
+      "company": "Pranik",
+      "function": "GTM",
+      "item": "Identify Sick Units- Hyd, Chennai, Mumbai",
+      "status": "On Hold",
+      "owner": "Kiran",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": "Is this a Priority in Phase-1?"
+    },
+    {
+      "id": "a122",
+      "company": "Pranik",
+      "function": "Product",
+      "item": "Constant Care- Cancer Integration",
+      "status": "Future",
+      "owner": "Natesh",
+      "founderDependency": "Decision",
+      "due": "",
+      "comments": ""
+    },
+    {
+      "id": "a143",
+      "company": "Pranik",
+      "function": "Product",
+      "item": "Auto assignment of doctors with CDSS & Scribe",
+      "status": "Done",
+      "owner": "Praveen",
+      "founderDependency": "None",
+      "due": "",
+      "comments": "Deployed CDSS & Scribe"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "d1",
+      "decision": "Avaitor's Project Assignment",
+      "owner": "Prasad",
+      "status": "To Start",
+      "founderDependency": "Delayed",
+      "impact": "Unused resources",
+      "deadline": "",
+      "nextReview": ""
+    },
+    {
+      "id": "d2",
+      "decision": "UAE GTM- Execution Plan",
+      "owner": "Nikhil",
+      "status": "WIP",
+      "founderDependency": "To Review",
+      "impact": "Loss of opportunity",
+      "deadline": "",
+      "nextReview": ""
+    },
+    {
+      "id": "d3",
+      "decision": "Exp. Creation Plan",
+      "owner": "Saurav",
+      "status": "Done",
+      "founderDependency": "To Review",
+      "impact": "1st mover advantage lost",
+      "deadline": "",
+      "nextReview": ""
+    },
+    {
+      "id": "d4",
+      "decision": "Pranik-0 Product Demo",
+      "owner": "Kiran",
+      "status": "Done",
+      "founderDependency": "To Review",
+      "impact": "Loss of market penetration",
+      "deadline": "",
+      "nextReview": ""
+    },
+    {
+      "id": "d5",
+      "decision": "Legal Agreements",
+      "owner": "Anagha",
+      "status": "To Start",
+      "founderDependency": "Delayed",
+      "impact": "Loss of opportunity",
+      "deadline": "",
+      "nextReview": ""
+    },
+    {
+      "id": "d6",
+      "decision": "Qwipo-CP Plan",
+      "owner": "Siva, Vamshi",
+      "status": "To Start",
+      "founderDependency": "Delayed",
+      "impact": "Loss of market penetration",
+      "deadline": "",
+      "nextReview": ""
+    }
+  ],
+  "priorities": [
+    {
+      "id": "p1",
+      "priority": "1.0",
+      "group": "Pranik Products",
+      "focusArea": "P4P / P4D / P4H",
+      "why": "Product readiness for GTM",
+      "horizon": "Next 15 days"
+    },
+    {
+      "id": "p2",
+      "priority": "2.0",
+      "group": "Pranik GTM",
+      "focusArea": "Indian Army",
+      "why": "Market recognition",
+      "horizon": "Next 30 days"
+    },
+    {
+      "id": "p3",
+      "priority": "2.0",
+      "group": "Pranik GTM",
+      "focusArea": "SPV",
+      "why": "Data source for SLMs, market leader",
+      "horizon": "Next 15 days"
+    },
+    {
+      "id": "p4",
+      "priority": "2.0",
+      "group": "Pranik GTM",
+      "focusArea": "Pranik Centres",
+      "why": "POC with Smart Clinics, need operating model",
+      "horizon": "Next 60 days"
+    },
+    {
+      "id": "p5",
+      "priority": "3.0",
+      "group": "Aarna Product",
+      "focusArea": "Digital Stores / Whitelight",
+      "why": "Product readiness for GTM",
+      "horizon": "Next 30 days"
+    },
+    {
+      "id": "p6",
+      "priority": "4.0",
+      "group": "Aarna GTM",
+      "focusArea": "Digital Stores / Creatorpreneurs",
+      "why": "",
+      "horizon": "Next 60 days"
+    },
+    {
+      "id": "p7",
+      "priority": "5.0",
+      "group": "Miraee",
+      "focusArea": "Miraee Product",
+      "why": "First source of revenue generation",
+      "horizon": "Next 15 days"
+    }
+  ]
+}
