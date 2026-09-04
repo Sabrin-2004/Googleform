@@ -27,6 +27,10 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-secret-key
 GOOGLE_SHEET_ID=1alUCBe5MRRZYp6hAcKuLsf0YAEhNx8h-s7UQOizgTfg
 PORT=5000
 HOST=0.0.0.0
+CORS_ALLOWED_ORIGINS=https://dashboard.example.com
+WEBHOOK_SECRET=generate-a-long-random-secret
+# Use false only for non-HTTPS localhost development.
+COOKIE_SECURE=false
 ```
 
 ### 2. Install Dependencies
@@ -39,6 +43,15 @@ pip install -r requirements.txt
 python app.py
 ```
 Open **[http://localhost:5000/login](http://localhost:5000/login)** in your browser.
+
+## Security configuration
+
+- Viewer accounts are read-only at the API boundary; all state-changing `/api` requests require an admin session.
+- Login uses an HttpOnly, SameSite session cookie. Set `COOKIE_SECURE=true` in every HTTPS deployment.
+- Set `CORS_ALLOWED_ORIGINS` to the exact, comma-separated frontend origins. Same-origin deployments may leave it blank.
+- `WEBHOOK_SECRET` is mandatory for inbound webhooks. Send it in `X-Webhook-Secret`, together with a unique `X-Idempotency-Key` for every delivery.
+- Keep `.env` and service-account JSON out of source control. If any key was ever committed or shared, rotate it in its provider before deploying.
+- Tests set `DASHBOARD_DATA_DIR` to a temporary directory so they cannot overwrite `data/dashboard_data.json`.
 
 ---
 

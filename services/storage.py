@@ -9,7 +9,7 @@ import threading
 import datetime
 from typing import Dict, Any, Optional
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+DATA_DIR = os.getenv('DASHBOARD_DATA_DIR', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data'))
 DATA_FILE = os.path.join(DATA_DIR, 'dashboard_data.json')
 BACKUP_DIR = os.path.join(DATA_DIR, 'backups')
 

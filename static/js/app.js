@@ -76,12 +76,14 @@
   let stagedFiles = [];
   let persistentUploadStatus = null;
   let activeStatusDropdown = null;
+  const REFRESH_TOKEN_KEY = 'gcc_refresh_token';
+  let refreshInFlight = null;
 
   // Authentication State
-  let authToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || '';
+  // Authentication is carried by the HttpOnly gcc_session cookie, never JavaScript-readable storage.
   let currentUser = null;
   try {
-    const savedUser = localStorage.getItem('gcc_user') || localStorage.getItem('gcc_auth_user');
+    const savedUser = sessionStorage.getItem('gcc_user');
     if(savedUser) currentUser = JSON.parse(savedUser);
   } catch(e){}
 
@@ -92,29 +94,67 @@
     return !isAdmin();
   }
 
-  async function apiFetch(endpoint, options = {}){
-    options.headers = options.headers || {};
-    const currentToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || (typeof window !== 'undefined' && window.GCC_TOKEN) || authToken || '';
-    if(currentToken){
-      if(options.headers instanceof Headers){
-        options.headers.set('Authorization', `Bearer ${currentToken}`);
-        options.headers.set('X-Auth-Token', currentToken);
-      } else {
-        options.headers['Authorization'] = `Bearer ${currentToken}`;
-        options.headers['X-Auth-Token'] = currentToken;
+  function storeRefreshToken(refreshToken){
+    if(!refreshToken) return;
+    sessionStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
+
+  function clearStoredSession(){
+    sessionStorage.removeItem('gcc_user');
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  }
+
+  function redirectToLogin(){
+    clearStoredSession();
+    window.location.href = '/login';
+  }
+
+  async function tryRefreshToken(){
+    const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY) || localStorage.getItem(REFRESH_TOKEN_KEY);
+    if(!refreshToken) return false;
+    if(refreshInFlight) return refreshInFlight;
+
+    refreshInFlight = (async ()=>{
+      try {
+        const res = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({refresh_token: refreshToken})
+        });
+        if(!res.ok) return false;
+        const data = await res.json();
+        if(!data.success || !data.refresh_token) return false;
+        storeRefreshToken(data.refresh_token);
+        if(data.user){
+          currentUser = data.user;
+          sessionStorage.setItem('gcc_user', JSON.stringify(currentUser));
+        }
+        return true;
+      } catch(e) {
+        return false;
+      } finally {
+        refreshInFlight = null;
       }
-    }
+    })();
+    return refreshInFlight;
+  }
+
+  async function apiFetch(endpoint, options = {}, retriedAfterRefresh = false){
+    options = {...options, headers: {...(options.headers || {})}};
     try {
-      const res = await fetch(endpoint, options);
+      const res = await fetch(endpoint, {...options, credentials: options.credentials || 'same-origin'});
       if (res.ok) {
         isBackendConnected = true;
         return await res.json();
       }
-      if(res.status === 401 && endpoint !== '/api/auth/login'){
-        sessionStorage.removeItem('gcc_token');
-        localStorage.removeItem('gcc_token');
-        localStorage.removeItem('gcc_user');
-        window.location.href = '/login';
+      if(res.status === 401 && endpoint !== '/api/auth/login' && endpoint !== '/api/auth/refresh'){
+        if(!retriedAfterRefresh && await tryRefreshToken()){
+          return apiFetch(endpoint, options, true);
+        }
+        redirectToLogin();
       }
       let errText = `HTTP ${res.status}: ${res.statusText}`;
       try {
@@ -130,19 +170,11 @@
   }
 
   async function checkAuthSession(){
-    if(!authToken){
-      authToken = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token') || '';
-    }
-    if(!authToken){
-      window.location.href = '/login';
-      return false;
-    }
     try {
       const res = await apiFetch('/api/auth/me');
       if(res && res.authenticated && res.user){
         currentUser = res.user;
-        localStorage.setItem('gcc_user', JSON.stringify(currentUser));
-        localStorage.setItem('gcc_auth_user', JSON.stringify(currentUser));
+        sessionStorage.setItem('gcc_user', JSON.stringify(currentUser));
         if(isViewer()){
           document.body.classList.add('gcc-viewer-mode');
         } else {
@@ -175,11 +207,9 @@
         body: JSON.stringify({ email: username, username, password })
       });
       if(res && res.success){
-        authToken = res.token;
         currentUser = res.user;
-        sessionStorage.setItem('gcc_token', authToken);
-        localStorage.setItem('gcc_token', authToken);
-        localStorage.setItem('gcc_user', JSON.stringify(currentUser));
+        sessionStorage.setItem('gcc_user', JSON.stringify(currentUser));
+        storeRefreshToken(res.refresh_token);
         if(isViewer()){
           document.body.classList.add('gcc-viewer-mode');
         } else {
@@ -194,18 +224,13 @@
 
   async function performLogout(){
     try {
-      if(isBackendConnected && authToken){
-        await apiFetch('/api/auth/logout', { method: 'POST' });
-      }
+      // The session token is HttpOnly, so JavaScript cannot inspect it. Always
+      // ask the server to clear the session cookie before navigating away.
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
     } catch(e){}
-    authToken = '';
     currentUser = null;
     sessionUnlocked = false;
-    sessionStorage.removeItem('gcc_token');
-    localStorage.removeItem('gcc_token');
-    localStorage.removeItem('gcc_user');
-    localStorage.removeItem('gcc_auth_token');
-    localStorage.removeItem('gcc_auth_user');
+    clearStoredSession();
     window.location.href = '/login';
   }
 
@@ -269,6 +294,7 @@
       googleSheets: {
         sheetId: '',
         target: 'all',
+        mode: 'merge',
         autoSyncIntervalMinutes: 0,
         lastSyncTime: null,
         syncStatus: 'idle',
@@ -395,6 +421,44 @@
     setupAutoSync();
   }
 
+  // Admin event-driven refresh: called after every successful admin mutation
+  let isReloadingData = false;
+  async function reloadDashboardData(){
+    if(!isAdmin() || isReloadingData) return;
+    isReloadingData = true;
+    try {
+      const remote = await apiFetch('/api/data');
+      if(remote){
+        state = remote;
+        const d = defaultSettings();
+        state.settings = Object.assign({}, d, state.settings);
+        state.settings.colors = Object.assign({}, d.colors, state.settings.colors);
+        state.settings.companyColors = Object.assign({}, d.companyColors, state.settings.companyColors);
+        applyTheme();
+        localStorage.setItem('gcc-data', JSON.stringify(state));
+        render();
+      }
+    } catch(err){
+      console.error('[admin] Failed to reload dashboard data:', err);
+    } finally {
+      isReloadingData = false;
+    }
+  }
+
+  // Viewer-only: apply remote data when admin changes are detected
+  async function applyRemoteIfChanged(remote){
+    if(!remote || !remote.lastUpdated) return;
+    if(state && remote.lastUpdated === state.lastUpdated) return;
+    state = remote;
+    const d = defaultSettings();
+    state.settings = Object.assign({}, d, state.settings);
+    state.settings.colors = Object.assign({}, d.colors, state.settings.colors);
+    state.settings.companyColors = Object.assign({}, d.companyColors, state.settings.companyColors);
+    applyTheme();
+    localStorage.setItem('gcc-data', JSON.stringify(state));
+    render();
+  }
+
   async function saveState(silent = false){
     state.lastUpdated = new Date().toISOString();
     localStorage.setItem('gcc-data', JSON.stringify(state));
@@ -407,6 +471,9 @@
           body: JSON.stringify(state)
         });
         if(!silent) Toast.success('Saved to server.');
+        if(isAdmin()){
+          await reloadDashboardData();
+        }
       } catch(e) {
         if(!silent) Toast.info('Saved locally (Server offline).');
       }
@@ -471,10 +538,10 @@
     }
   }
 
-  async function syncGoogleSheets(interactive = true){
+  async function syncGoogleSheets(interactive = true, selectedMode = null){
     const sheetIdInput = document.getElementById('gs-sheet-id');
     const sheetId = sheetIdInput ? sheetIdInput.value.trim() : state.settings.googleSheets.sheetId;
-    const mode = (document.getElementById('gs-sync-mode') && document.getElementById('gs-sync-mode').value) || 'merge';
+    const mode = selectedMode || (document.getElementById('gs-sync-mode') && document.getElementById('gs-sync-mode').value) || state.settings.googleSheets.mode || 'merge';
     const target = (document.getElementById('gs-sync-target') && document.getElementById('gs-sync-target').value) || state.settings.googleSheets.target || 'all';
 
     if(!sheetId && interactive){
@@ -631,7 +698,9 @@
         try {
           const formData = new FormData();
           formData.append('file', _stagedCredsFile);
-          const data = await apiFetch('/api/credentials/upload', { method: 'POST', body: formData });
+          const res = await fetch('/api/credentials/upload', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Upload failed');
           Toast.success(data.message || 'Credentials activated!');
           _stagedCredsFile = null;
           const stagedEl = document.getElementById('creds-staged-name');
@@ -712,6 +781,14 @@
 
     let appended = 0, updated = 0, skipped = 0, flagged = 0, deleted = 0, sheetsProcessed = 0;
     const conflicts = [];
+    const matched = { actions: new Set(), decisions: new Set(), priorities: new Set() };
+    // Delete & Merge always protects dashboard changes; incoming values only fill blanks.
+    const effectiveConflictStrategy = mode === 'delete_merge' ? 'existing_wins' : conflictStrategy;
+    const fillBlankFields = (existing, incoming) => {
+      Object.entries(incoming).forEach(([key, value]) => {
+        if(key !== 'id' && !existing[key] && value) existing[key] = value;
+      });
+    };
     
     if(destination === 'create_new' && newCompanyName){
       const compId = newCompanyName.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -770,18 +847,20 @@
               };
 
               const existing = state.decisions.find(d=> d.decision.toLowerCase().replace(/[^a-z0-9]/g,'') === norm.decision.toLowerCase().replace(/[^a-z0-9]/g,''));
-              if(existing && mode === 'merge'){
-                if(conflictStrategy === 'incoming_wins'){
+              if(existing && (mode === 'merge' || mode === 'delete_merge')){
+                matched.decisions.add(existing.id);
+                if(effectiveConflictStrategy === 'incoming_wins'){
                   Object.assign(existing, { owner: norm.owner || existing.owner, status: norm.status || existing.status, impact: norm.impact || existing.impact });
                   updated++;
-                } else if(conflictStrategy === 'existing_wins'){
-                  if(!existing.owner && norm.owner) existing.owner = norm.owner;
+                } else if(effectiveConflictStrategy === 'existing_wins'){
+                  fillBlankFields(existing, norm);
                   updated++;
                 } else if(conflictStrategy === 'manual_review'){
                   flagged++;
                   conflicts.push({ type: 'decision', id: existing.id, existing, incoming: norm, diffs: { status: { existing: existing.status, incoming: norm.status } } });
                 }
               } else {
+                if(mode === 'delete_merge') matched.decisions.add(norm.id);
                 state.decisions.unshift(norm);
                 appended++;
               }
@@ -799,14 +878,17 @@
               };
 
               const existing = state.priorities.find(p=> p.focusArea.toLowerCase().replace(/[^a-z0-9]/g,'') === norm.focusArea.toLowerCase().replace(/[^a-z0-9]/g,''));
-              if(existing && mode === 'merge'){
-                if(conflictStrategy === 'incoming_wins'){
+              if(existing && (mode === 'merge' || mode === 'delete_merge')){
+                matched.priorities.add(existing.id);
+                if(effectiveConflictStrategy === 'incoming_wins'){
                   Object.assign(existing, { priority: norm.priority || existing.priority, why: norm.why || existing.why, horizon: norm.horizon || existing.horizon });
                   updated++;
-                } else {
+                } else if(effectiveConflictStrategy === 'existing_wins'){
+                  fillBlankFields(existing, norm);
                   updated++;
                 }
               } else {
+                if(mode === 'delete_merge') matched.priorities.add(norm.id);
                 state.priorities.unshift(norm);
                 appended++;
               }
@@ -831,18 +913,20 @@
               };
 
               const existing = state.actions.find(a=> a.company.toLowerCase() === norm.company.toLowerCase() && a.item.toLowerCase().replace(/[^a-z0-9]/g,'') === norm.item.toLowerCase().replace(/[^a-z0-9]/g,''));
-              if(existing && mode === 'merge'){
-                if(conflictStrategy === 'incoming_wins'){
+              if(existing && (mode === 'merge' || mode === 'delete_merge')){
+                matched.actions.add(existing.id);
+                if(effectiveConflictStrategy === 'incoming_wins'){
                   Object.assign(existing, { status: norm.status || existing.status, owner: norm.owner || existing.owner, function: norm.function || existing.function, due: norm.due || existing.due });
                   updated++;
-                } else if(conflictStrategy === 'existing_wins'){
-                  if(!existing.comments && norm.comments) existing.comments = norm.comments;
+                } else if(effectiveConflictStrategy === 'existing_wins'){
+                  fillBlankFields(existing, norm);
                   updated++;
                 } else if(conflictStrategy === 'manual_review'){
                   flagged++;
                   conflicts.push({ type: 'action', id: existing.id, existing, incoming: norm, diffs: { status: { existing: existing.status, incoming: norm.status } } });
                 }
               } else {
+                if(mode === 'delete_merge') matched.actions.add(norm.id);
                 state.actions.unshift(norm);
                 appended++;
               }
@@ -852,10 +936,28 @@
       }
     }
 
+    if(mode === 'delete_merge'){
+      if(destination === 'all' || destination === 'register' || destination === 'create_new'){
+        const kept = state.actions.filter(a => matched.actions.has(a.id));
+        deleted += state.actions.length - kept.length;
+        state.actions = kept;
+      }
+      if(destination === 'all' || destination === 'decisions'){
+        const kept = state.decisions.filter(d => matched.decisions.has(d.id));
+        deleted += state.decisions.length - kept.length;
+        state.decisions = kept;
+      }
+      if(destination === 'all' || destination === 'priorities'){
+        const kept = state.priorities.filter(p => matched.priorities.has(p.id));
+        deleted += state.priorities.length - kept.length;
+        state.priorities = kept;
+      }
+    }
+
     await saveState(true);
     return {
-      message: `Processed ${sheetsProcessed} sheet(s): ${appended} appended, ${updated} updated, ${skipped} skipped, ${flagged} flagged.`,
-      counts: { appended, updated, skipped, flagged, deleted, sheets_processed: sheetsProcessed },
+      message: `Processed ${sheetsProcessed} sheet(s): ${appended} appended, ${updated} updated, ${deleted} removed, ${skipped} skipped, ${flagged} flagged.`,
+      counts: { appended, updated, deleted, skipped, flagged, sheets_processed: sheetsProcessed },
       conflicts
     };
   }
@@ -2043,9 +2145,9 @@
               <div>
                 <label>Sync Strategy</label>
                 <select id="gs-sync-mode">
-                  <option value="merge">Merge & Update</option>
-                  <option value="delete_merge">Delete & Merge</option>
-                  <option value="replace">Replace All</option>
+                  <option value="merge" ${gs.mode==='merge'||!gs.mode?'selected':''}>Merge & Update</option>
+                  <option value="delete_merge" ${gs.mode==='delete_merge'?'selected':''}>Delete &amp; Merge</option>
+                  <option value="replace" ${gs.mode==='replace'?'selected':''}>Replace All</option>
                 </select>
               </div>
             </div>
@@ -2145,7 +2247,7 @@
               <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Import Strategy</label>
               <select id="upload-mode-select">
                 <option value="merge">Merge & Update</option>
-                <option value="delete_merge">Delete & Merge</option>
+                <option value="delete_merge">Delete &amp; Merge</option>
                 <option value="append">Append Only (New IDs)</option>
                 <option value="replace">Replace All Existing</option>
               </select>
@@ -2209,7 +2311,7 @@
           </div>
 
           ${persistentUploadStatus && persistentUploadStatus.counts ? `
-          <div class="gcc-metrics-container">
+            <div class="gcc-metrics-container">
               <div class="gcc-metric-card appended">
                 <div class="gcc-metric-val">+${persistentUploadStatus.counts.appended || 0}</div>
                 <div class="gcc-metric-label">Appended</div>
@@ -2754,7 +2856,10 @@ function onFormSubmit(e) {
   UrlFetchApp.fetch(WEBHOOK_URL, {
     method: "post",
     contentType: "application/json",
-    headers: WEBHOOK_SECRET ? { "X-Webhook-Secret": WEBHOOK_SECRET } : {},
+    headers: {
+      "X-Webhook-Secret": WEBHOOK_SECRET,
+      "X-Idempotency-Key": formResponse.getId()
+    },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
@@ -2960,60 +3065,60 @@ function onFormSubmit(e) {
   }
 
   function wireView(){
-    if(!isAdmin()){
-      // Viewer mode: no editing permissions
-      return;
-    }
-    // Universal Quick Status Picker Trigger
-    document.querySelectorAll('[data-quick-status]').forEach(badge=>{
-      badge.onclick = (e)=>{
-        e.stopPropagation();
-        const type = badge.dataset.quickStatus;
-        const itemId = badge.dataset.itemId;
+    // Universal Quick Status Picker Trigger (Admin only)
+    if(isAdmin()){
+      document.querySelectorAll('[data-quick-status]').forEach(badge=>{
+        badge.onclick = (e)=>{
+          e.stopPropagation();
+          const type = badge.dataset.quickStatus;
+          const itemId = badge.dataset.itemId;
 
-        if(type === 'action'){
-          const a = state.actions.find(x=>x.id === itemId);
-          if(!a) return;
-          showStatusQuickPicker(badge, a.status, async (newStatus)=>{
-            a.status = newStatus;
-            await saveState(true);
-            Toast.success(`Status updated to ${newStatus}`);
-            render();
-          });
-        } else if(type === 'decision'){
-          const d = state.decisions.find(x=>x.id === itemId);
-          if(!d) return;
-          showStatusQuickPicker(badge, d.status, async (newStatus)=>{
-            d.status = newStatus;
-            await saveState(true);
-            Toast.success(`Status updated to ${newStatus}`);
-            render();
-          });
-        }
-      };
-    });
+          if(type === 'action'){
+            const a = state.actions.find(x=>x.id === itemId);
+            if(!a) return;
+            showStatusQuickPicker(badge, a.status, async (newStatus)=>{
+              a.status = newStatus;
+              await saveState(true);
+              Toast.success(`Status updated to ${newStatus}`);
+              render();
+            });
+          } else if(type === 'decision'){
+            const d = state.decisions.find(x=>x.id === itemId);
+            if(!d) return;
+            showStatusQuickPicker(badge, d.status, async (newStatus)=>{
+              d.status = newStatus;
+              await saveState(true);
+              Toast.success(`Status updated to ${newStatus}`);
+              render();
+            });
+          }
+        };
+      });
+    }
 
     if(view==='overview'){
-      document.querySelectorAll('[data-edit-action]').forEach(el=>{
-        el.onclick = (e)=>{
-          if(e.target.closest('[data-quick-status]')) return;
-          openEditActionModal(el.dataset.editAction);
-        };
-      });
+      if(isAdmin()){
+        document.querySelectorAll('[data-edit-action]').forEach(el=>{
+          el.onclick = (e)=>{
+            if(e.target.closest('[data-quick-status]')) return;
+            openEditActionModal(el.dataset.editAction);
+          };
+        });
 
-      document.querySelectorAll('[data-edit-decision]').forEach(el=>{
-        el.onclick = (e)=>{
-          if(e.target.closest('[data-quick-status]')) return;
-          openEditDecisionModal(el.dataset.editDecision);
-        };
-      });
+        document.querySelectorAll('[data-edit-decision]').forEach(el=>{
+          el.onclick = (e)=>{
+            if(e.target.closest('[data-quick-status]')) return;
+            openEditDecisionModal(el.dataset.editDecision);
+          };
+        });
 
-      const spotlightBtn = document.getElementById('edit-spotlight');
-      if(spotlightBtn) spotlightBtn.onclick = (e)=>{
-        e.stopPropagation();
-        view = 'settings';
-        render();
-      };
+        const spotlightBtn = document.getElementById('edit-spotlight');
+        if(spotlightBtn) spotlightBtn.onclick = (e)=>{
+          e.stopPropagation();
+          view = 'settings';
+          render();
+        };
+      }
 
       // Non-destructive search input handling: restores cursor position & focus
       const oq = document.getElementById('f-overview-q');
@@ -3156,8 +3261,25 @@ function onFormSubmit(e) {
         };
       }
 
-      const addActBtn = document.getElementById('btn-open-add-action');
-      if(addActBtn) addActBtn.onclick = openAddActionModal;
+      if(isAdmin()){
+        const addActBtn = document.getElementById('btn-open-add-action');
+        if(addActBtn) addActBtn.onclick = openAddActionModal;
+
+        document.querySelectorAll('[data-edit-action]').forEach(btn=>{
+          btn.onclick = (e)=>{
+            e.stopPropagation();
+            openEditActionModal(btn.dataset.editAction);
+          };
+        });
+
+        document.querySelectorAll('[data-hide-action]').forEach(btn=>{
+          btn.onclick = async (e)=>{
+            e.stopPropagation();
+            const a = state.actions.find(x=>x.id===btn.dataset.hideAction);
+            if(a){ a.hidden = !a.hidden; await saveState(true); render(); }
+          };
+        });
+      }
 
       const fq = document.getElementById('f-q');
       if(fq){
@@ -3193,46 +3315,51 @@ function onFormSubmit(e) {
               <tr data-row-id="${a.id}" class="${emphClass(a.status)}">
                 ${visibleCols.map(c=>{
                   if(c.key==='company') return `<td><span class="gcc-co-tag" style="background:${companyColor(a.company)}22;color:${companyColor(a.company)}">${escapeHtml(a.company)}</span></td>`;
-                  if(c.key==='status') return `<td><span class="gcc-a-status" data-quick-status="action" data-item-id="${a.id}" style="background:${soft};color:${solid};">${escapeHtml(a.status)} ${icon('chevronDown')}</span></td>`;
+                  if(c.key==='status') return `<td><span class="gcc-a-status" ${isAdmin()?`data-quick-status="action" data-item-id="${a.id}" style="cursor:pointer;background:${soft};color:${solid};"`:`style="background:${soft};color:${solid};"`}>${escapeHtml(a.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</span></td>`;
                   if(c.key==='owner') return `<td class="owner">${escapeHtml(a.owner||'—')}</td>`;
                   if(c.key==='founderDependency') return `<td>${escapeHtml(a.founderDependency||'—')}</td>`;
                   if(c.key==='comments') return `<td style="color:var(--text-muted);font-size:11.5px;">${escapeHtml(a.comments||'—')}</td>`;
                   if(c.key==='item') return `<td style="font-weight:500;">${escapeHtml(a.item)}</td>`;
                   return `<td>${escapeHtml(a[c.key]||'—')}</td>`;
                 }).join('')}
+                ${isAdmin() ? `
                 <td style="text-align:right;white-space:nowrap;">
                   <button class="gcc-btn secondary" data-edit-action="${a.id}" title="Edit item" style="padding:3px 6px;font-size:10px;">${icon('edit')}</button>
                   <button class="gcc-btn secondary" data-hide-action="${a.id}" title="${a.hidden?'Unhide':'Hide'} row" style="padding:3px 6px;font-size:10px;">${a.hidden?icon('eye'):icon('eyeOff')}</button>
-                </td>
+                </td>` : ''}
               </tr>`;
             }).join('') || '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No matching action items found.</td></tr>';
             wireView();
           }
         };
       }
-
-      document.querySelectorAll('[data-edit-action]').forEach(btn=>{
-        btn.onclick = (e)=>{
-          e.stopPropagation();
-          openEditActionModal(btn.dataset.editAction);
-        };
-      });
-
-      document.querySelectorAll('[data-hide-action]').forEach(btn=>{
-        btn.onclick = async (e)=>{
-          e.stopPropagation();
-          const a = state.actions.find(x=>x.id===btn.dataset.hideAction);
-          if(a){ a.hidden = !a.hidden; await saveState(true); render(); }
-        };
-      });
     }
 
     if(view==='decisions'){
-      document.getElementById('f-decisions-owner').onchange = e=>{filters.decisions.owner=e.target.value; render();};
-      document.getElementById('f-decisions-show-hidden').onchange = e=>{filters.decisions.showHidden=e.target.checked; render();};
+      const fDecOwner = document.getElementById('f-decisions-owner');
+      if(fDecOwner) fDecOwner.onchange = e=>{filters.decisions.owner=e.target.value; render();};
+      const fDecHidden = document.getElementById('f-decisions-show-hidden');
+      if(fDecHidden) fDecHidden.onchange = e=>{filters.decisions.showHidden=e.target.checked; render();};
       
-      const addDecBtn = document.getElementById('btn-open-add-decision');
-      if(addDecBtn) addDecBtn.onclick = openAddDecisionModal;
+      if(isAdmin()){
+        const addDecBtn = document.getElementById('btn-open-add-decision');
+        if(addDecBtn) addDecBtn.onclick = openAddDecisionModal;
+
+        document.querySelectorAll('[data-edit-decision]').forEach(btn=>{
+          btn.onclick = (e)=>{
+            e.stopPropagation();
+            openEditDecisionModal(btn.dataset.editDecision);
+          };
+        });
+
+        document.querySelectorAll('[data-hide-decision]').forEach(btn=>{
+          btn.onclick = async (e)=>{
+            e.stopPropagation();
+            const d = state.decisions.find(x=>x.id===btn.dataset.hideDecision);
+            if(d){ d.hidden = !d.hidden; await saveState(true); render(); }
+          };
+        });
+      }
 
       const fdq = document.getElementById('f-decisions-q');
       if(fdq){
@@ -3255,41 +3382,33 @@ function onFormSubmit(e) {
               return `
               <tr data-row-id="${d.id}" class="${emphClass(d.status)}">
                 ${visibleCols.map(c=>{
-                  if(c.key==='status') return `<td><span class="gcc-a-status" data-quick-status="decision" data-item-id="${d.id}" style="background:${soft};color:${solid};">${escapeHtml(d.status)} ${icon('chevronDown')}</span></td>`;
+                  if(c.key==='status') return `<td><span class="gcc-a-status" ${isAdmin()?`data-quick-status="decision" data-item-id="${d.id}" style="cursor:pointer;background:${soft};color:${solid};"`:`style="background:${soft};color:${solid};"`}>${escapeHtml(d.status)}${isAdmin()?` ${icon('chevronDown')}`:''}</span></td>`;
                   if(c.key==='decision') return `<td style="font-weight:600;color:var(--table-text);">${escapeHtml(d.decision)}</td>`;
                   if(c.key==='impact') return `<td style="color:var(--attention);font-size:12px;">${escapeHtml(d.impact||'—')}</td>`;
                   return `<td>${escapeHtml(d[c.key]||'—')}</td>`;
                 }).join('')}
+                ${isAdmin() ? `
                 <td style="text-align:right;white-space:nowrap;">
                   <button class="gcc-btn secondary" data-edit-decision="${d.id}" title="Edit decision" style="padding:3px 6px;font-size:10px;">${icon('edit')}</button>
                   <button class="gcc-btn secondary" data-hide-decision="${d.id}" title="${d.hidden?'Unhide':'Hide'} row" style="padding:3px 6px;font-size:10px;">${d.hidden?icon('eye'):icon('eyeOff')}</button>
-                </td>
+                </td>` : ''}
               </tr>`;
             }).join('') || '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No decisions found.</td></tr>';
             wireView();
           }
         };
       }
-
-      document.querySelectorAll('[data-edit-decision]').forEach(btn=>{
-        btn.onclick = (e)=>{
-          e.stopPropagation();
-          openEditDecisionModal(btn.dataset.editDecision);
-        };
-      });
-
-      document.querySelectorAll('[data-hide-decision]').forEach(btn=>{
-        btn.onclick = async (e)=>{
-          e.stopPropagation();
-          const d = state.decisions.find(x=>x.id===btn.dataset.hideDecision);
-          if(d){ d.hidden = !d.hidden; await saveState(true); render(); }
-        };
-      });
     }
 
     if(view==='priorities'){
-      const addPrioBtn = document.getElementById('btn-open-add-priority');
-      if(addPrioBtn) addPrioBtn.onclick = openAddPriorityModal;
+      if(isAdmin()){
+        const addPrioBtn = document.getElementById('btn-open-add-priority');
+        if(addPrioBtn) addPrioBtn.onclick = openAddPriorityModal;
+
+        document.querySelectorAll('[data-edit-priority]').forEach(el=>{
+          el.onclick = ()=> openEditPriorityModal(el.dataset.editPriority);
+        });
+      }
 
       const fpq = document.getElementById('f-priorities-q');
       if(fpq){
@@ -3315,7 +3434,7 @@ function onFormSubmit(e) {
                   ${escapeHtml(g)}
                 </div>
                 ${groups[g].map(p=>`
-                  <div class="gcc-prio-item" data-edit-priority="${p.id}">
+                  <div class="gcc-prio-item" ${isAdmin()?`data-edit-priority="${p.id}"`:''}>
                     <div>
                       <div style="font-weight:600;color:var(--table-text);margin-bottom:3px;">
                         <span style="font-family:var(--font-mono);color:var(--progress);margin-right:6px;">${escapeHtml(p.priority||'1.0')}</span>
@@ -3324,9 +3443,10 @@ function onFormSubmit(e) {
                       <div class="gcc-prio-why">${escapeHtml(p.why||'')}</div>
                     </div>
                     <div class="gcc-prio-horizon">${escapeHtml(p.horizon||'')}</div>
+                    ${isAdmin() ? `
                     <div style="text-align:right;">
                       <button class="gcc-btn secondary" style="padding:3px 6px;font-size:10px;" title="Edit priority">${icon('edit')}</button>
-                    </div>
+                    </div>` : ''}
                   </div>
                 `).join('')}
               </div>
@@ -3335,10 +3455,6 @@ function onFormSubmit(e) {
           }
         };
       }
-
-      document.querySelectorAll('[data-edit-priority]').forEach(el=>{
-        el.onclick = ()=> openEditPriorityModal(el.dataset.editPriority);
-      });
     }
 
     if(view==='data'){
@@ -3350,12 +3466,14 @@ function onFormSubmit(e) {
         const sheetId = document.getElementById('gs-sheet-id').value.trim();
         const autoInterval = +document.getElementById('gs-auto-interval').value;
         const target = (document.getElementById('gs-sync-target') && document.getElementById('gs-sync-target').value) || 'all';
+        const mode = (document.getElementById('gs-sync-mode') && document.getElementById('gs-sync-mode').value) || 'merge';
         state.settings.googleSheets.sheetId = sheetId;
         state.settings.googleSheets.target = target;
+        state.settings.googleSheets.mode = mode;
         state.settings.googleSheets.autoSyncIntervalMinutes = autoInterval;
         await saveState(true);
         setupAutoSync();
-        syncGoogleSheets(true);
+        syncGoogleSheets(true, mode);
       };
 
       const dropzone = document.getElementById('gcc-dropzone');
@@ -3474,8 +3592,20 @@ function onFormSubmit(e) {
               if(dateEnd) formData.append('date_end', dateEnd);
               if(newCompanyName) formData.append('new_company_name', newCompanyName);
 
-              const json = await apiFetch('/api/upload', {method: 'POST', body: formData});
-              if(json && json.success){
+              // Upload authentication uses the HttpOnly gcc_session cookie established at login.
+              // Do not set multipart Content-Type manually: the browser supplies its boundary.
+              const uploadRequest = () => fetch('/api/upload', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+              });
+              let res = await uploadRequest();
+              if(res.status === 401 && await tryRefreshToken()){
+                res = await uploadRequest();
+              }
+              if(res.status === 401) redirectToLogin();
+              const json = await res.json();
+              if(res.ok && json.success){
                 const latest = await apiFetch('/api/data');
                 state = latest;
                 localStorage.setItem('gcc-data', JSON.stringify(state));
@@ -3855,10 +3985,16 @@ function onFormSubmit(e) {
           const i = +b.dataset.companyRemove;
           if(state.settings.companies.length <= 1){ Toast.error('Keep at least one company in your portfolio.'); return; }
           const co = state.settings.companies[i];
-          if(!confirm(`Remove company "${co.name}"? Existing action items stay tagged, but it will drop off the health overview and dropdowns.`)) return;
+          if(!confirm(`Remove company "${co.name}"? This will permanently delete all associated action items, decisions, and priorities across all tabs.`)) return;
           state.settings.companies.splice(i, 1);
+          
+          // Remove all details associated with this company
+          if (state.actions) state.actions = state.actions.filter(a => a.company !== co.name && a.company !== co.id);
+          if (state.decisions) state.decisions = state.decisions.filter(d => d.company !== co.name && d.company !== co.id);
+          if (state.priorities) state.priorities = state.priorities.filter(p => p.group !== co.name && p.group !== co.id);
+          
           await saveState(true);
-          Toast.success(`Company "${co.name}" removed.`);
+          Toast.success(`Company "${co.name}" and its details were removed.`);
           render();
         };
       });
@@ -4184,4 +4320,28 @@ function onFormSubmit(e) {
 
   // Initialize
   loadState();
+
+  // Viewer-only: lightweight visibility-aware poll (every 15 seconds)
+  // Fires ONLY when the browser tab is visible and the user is NOT an admin.
+  // Re-renders ONLY if the admin has changed data (lastUpdated differs).
+  // This is the only way viewers can detect admin changes without a manual refresh.
+  let viewerPollTimer = null;
+  function startViewerPoll(){
+    if(isAdmin()) return;  // Admins use event-driven refresh, not polling
+    if(viewerPollTimer) return;  // Never create duplicate intervals
+    viewerPollTimer = setInterval(async () => {
+      if(document.hidden) return;  // Pause when tab is in the background
+      try {
+        const remote = await apiFetch('/api/data');
+        await applyRemoteIfChanged(remote);
+      } catch(e) {
+        // Ignore transient network errors silently
+      }
+    }, 15000);
+  }
+
+  // Start viewer poll after loadState resolves (give auth a moment to settle)
+  setTimeout(() => {
+    if(!isAdmin()) startViewerPoll();
+  }, 2000);
 })();

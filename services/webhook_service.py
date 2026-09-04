@@ -4,6 +4,7 @@ Handles inbound webhooks from Google Forms, Zapier, Make, and Custom HTTP POST r
 Provides auto-mapping of form fields, validation, persistence, and audit logging.
 """
 import os
+import hmac
 import json
 import uuid
 import datetime
@@ -245,9 +246,8 @@ def process_inbound_webhook(
     webhook_settings = state.get("settings", {}).get("webhookSettings", {})
 
     # Validate secret if required
-    configured_secret = webhook_settings.get("secretKey") or os.getenv("WEBHOOK_SECRET")
-    if configured_secret:
-        if not secret or secret.strip() != configured_secret.strip():
+    configured_secret = os.getenv("WEBHOOK_SECRET", "").strip()
+    if not configured_secret or not secret or not hmac.compare_digest(secret, configured_secret):
             msg = "Webhook rejected: Invalid or missing secret token."
             log_webhook_event(
                 source="Inbound Webhook",
@@ -355,7 +355,10 @@ function onFormSubmit(e) {{
   const options = {{
     method: "post",
     contentType: "application/json",
-    headers: WEBHOOK_SECRET ? {{ "X-Webhook-Secret": WEBHOOK_SECRET }} : {{}},
+    headers: {{
+      "X-Webhook-Secret": WEBHOOK_SECRET,
+      "X-Idempotency-Key": formResponse.getId()
+    }},
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   }};

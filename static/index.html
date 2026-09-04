@@ -15,7 +15,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Dashboard Core Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="/static/css/styles.css">
 
   <!-- Lucide Icons -->
@@ -125,22 +124,11 @@
   <!-- Auth guard runs FIRST before showing anything -->
   <script>
     (async function authGuard() {
-      const token = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token');
-
-      if (!token) {
-        window.location.href = '/login';
-        return;
-      }
-
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
+        const res = await fetch('/api/auth/me');
 
         if (!res.ok) {
-          sessionStorage.removeItem('gcc_token');
-          localStorage.removeItem('gcc_token');
-          localStorage.removeItem('gcc_user');
+          sessionStorage.removeItem('gcc_user');
           window.location.href = '/login';
           return;
         }
@@ -149,9 +137,8 @@
         const user = data.user;
 
         window.GCC_USER  = user;
-        window.GCC_TOKEN = token;
         window.GCC_ROLE  = user.role;
-        localStorage.setItem('gcc_user', JSON.stringify(user));
+        sessionStorage.setItem('gcc_user', JSON.stringify(user));
 
         if (user.role !== 'admin') {
           document.body.classList.add('gcc-viewer-mode');
@@ -178,11 +165,10 @@
   </div>
 
   <!-- Modular JavaScript Engine -->
-  <script src="js/app.js?v=2.2"></script>
   <script>
     if (typeof window.render === 'undefined' && !document.querySelector('script[src*="app.js"][data-loaded]')) {
       var s = document.createElement('script');
-      s.src = '/static/js/app.js?v=2.2';
+      s.src = '/static/js/app.js';
       document.body.appendChild(s);
     }
   </script>

@@ -1,0 +1,66 @@
+63: setTimeout(()=> toast.remove(), 250);
+116: sessionStorage.removeItem('gcc_token');
+117: localStorage.removeItem('gcc_token');
+118: localStorage.removeItem('gcc_user');
+151: document.body.classList.remove('gcc-viewer-mode');
+160: document.body.classList.remove('gcc-viewer-mode');
+188: document.body.classList.remove('gcc-viewer-mode');
+206: sessionStorage.removeItem('gcc_token');
+207: localStorage.removeItem('gcc_token');
+208: localStorage.removeItem('gcc_user');
+209: localStorage.removeItem('gcc_auth_token');
+210: localStorage.removeItem('gcc_auth_user');
+658: if (!confirm('Remove all "Google Sheet" fallback rows? This cannot be undone.')) return;
+662: Toast.success(`Removed ${res.removedActions} action(s), ${res.removedDecisions} decision(s), ${res.removedPriorities} priority item(s) labelled "Google Sheet".`);
+711: excludedStatuses = ['archived', 'cancelled', 'deleted', 'trash'],
+1063: document.removeEventListener('click', onDocClick);
+1071: activeStatusDropdown.remove();
+1163: <button class="gcc-btn danger" id="btn-delete-act">${icon('trash')} Delete</button>
+1191: document.getElementById('btn-delete-act').onclick = async ()=>{
+1192: if(!confirm('Delete this action item?')) return;
+1196: Toast.info('Action item deleted.');
+1334: <button class="gcc-btn danger" id="btn-delete-dec">${icon('trash')} Delete</button>
+1360: document.getElementById('btn-delete-dec').onclick = async ()=>{
+1361: if(!confirm('Delete this decision?')) return;
+1365: Toast.info('Decision deleted.');
+1447: <button class="gcc-btn danger" id="btn-delete-prio">${icon('trash')} Delete</button>
+1472: document.getElementById('btn-delete-prio').onclick = async ()=>{
+1473: if(!confirm('Delete this priority?')) return;
+1477: Toast.info('Priority deleted.');
+2117: <button class="gcc-btn" id="btn-cleanup-fallback" style="background:var(--attention);" title="Remove 'Google Sheet' fallback rows left by previous failed syncs">${icon('trash')} Clean Up Fallback Data</button>
+2193: <input id="upload-excluded-statuses" value="archived, cancelled, deleted, trash" placeholder="archived, cancelled, deleted, trash"/>
+2367: <p>Add or remove companies in your portfolio. Removing one won't delete existing action items tagged with it, but it drops off the Overview health list and dropdowns.</p>
+2373: <button class="gcc-col-remove" data-company-remove="${i}" title="Remove this company">✕</button>
+2385: <p>Add or remove statuses available across the dashboard. Each status has a bucket (Attention, Hold, In Progress, Done, Future).</p>
+2391: <button class="gcc-col-remove" data-status-remove="${i}" title="Remove this status">✕</button>
+2409: <button class="gcc-col-remove" data-col-remove="${i}" title="Remove this column">✕</button>
+2429: <button class="gcc-col-remove" data-dcol-remove="${i}" title="Remove this column">✕</button>
+2449: <button class="gcc-col-remove" data-kpi-remove="${i}" title="Remove this card">✕</button>
+2515: <label>Current PIN (required to change or remove)</label>
+2517: <label>New PIN (leave blank to remove protection)</label>
+2815: <button class="gcc-btn-remove-staged" data-remove-staged="${idx}" title="Remove file">✕</button>
+2820: listEl.querySelectorAll('[data-remove-staged]').forEach(btn=>{
+2823: const idx = +btn.dataset.removeStaged;
+2953: setTimeout(()=>el.classList.remove('gcc-row-jump'), 1800);
+3369: dropzone.ondragleave = ()=>{ dropzone.classList.remove('dragover'); };
+3372: dropzone.classList.remove('dragover');
+3851: document.querySelectorAll('[data-company-remove]').forEach(b=>{
+3853: const i = +b.dataset.companyRemove;
+3856: if(!confirm(`Remove company "${co.name}"? Existing action items stay tagged, but it will drop off the health overview and dropdowns.`)) return;
+3859: Toast.success(`Company "${co.name}" removed.`);
+3884: document.querySelectorAll('[data-status-remove]').forEach(b=>{
+3886: const i = +b.dataset.statusRemove;
+3889: if(!confirm(`Remove status "${st}"? Existing items retain their status, but it will no longer appear in status selectors.`)) return;
+3892: Toast.success(`Status "${st}" removed.`);
+3949: document.querySelectorAll('[data-col-remove]').forEach(b=>{
+3951: const i = +b.dataset.colRemove;
+3954: if(!confirm(`Remove column "${col.label}"? Any data entered in custom fields will be hidden.`)) return;
+3957: Toast.success(`Column "${col.label}" removed.`);
+4007: document.querySelectorAll('[data-dcol-remove]').forEach(b=>{
+4009: const i = +b.dataset.dcolRemove;
+4012: if(!confirm(`Remove decision column "${col.label}"?`)) return;
+4015: Toast.success(`Decision column "${col.label}" removed.`);
+4035: document.querySelectorAll('[data-kpi-remove]').forEach(b=>{
+4037: const i = +b.dataset.kpiRemove;
+4040: Toast.success('KPI card removed.');
+4154: Toast.success(next ? 'PIN protection activated.' : 'PIN protection removed.');

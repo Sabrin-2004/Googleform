@@ -4,8 +4,12 @@ Provides RESTful APIs, Google Sheets (3+ tabs) auto-sync, Multi-CSV & Excel uplo
 """
 import os
 import io
+import json
+import hmac
 import datetime
 import logging
+import time
+from collections import defaultdict, deque
 from typing import Optional, List, Dict
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
@@ -47,9 +51,9 @@ from services.data_validator import (
 )
 from services.auth_service import (
     authenticate_user,
+    refresh_session,
     verify_session_token,
     revoke_session,
-    change_password,
     admin_create_user,
     admin_list_users,
     admin_delete_user,
@@ -69,18 +73,72 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="CEO Dashboard API")
 
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+MAX_UPLOAD_FILES = int(os.getenv("MAX_UPLOAD_FILES", "5"))
+MAX_IMPORT_ROWS = int(os.getenv("MAX_IMPORT_ROWS", "10000"))
+MAX_EXCEL_SHEETS = int(os.getenv("MAX_EXCEL_SHEETS", "20"))
+MAX_WEBHOOK_BYTES = int(os.getenv("MAX_WEBHOOK_BYTES", str(1024 * 1024)))
+WEBHOOK_RATE_LIMIT = int(os.getenv("WEBHOOK_RATE_LIMIT", "60"))
+_webhook_requests = defaultdict(deque)
+_webhook_idempotency = {}
+cors_origins = [origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=bool(cors_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def require_admin_for_mutations(request: Request, call_next):
+    """Enforce server-side RBAC for every state-changing dashboard API.
+
+    All state-changing /api endpoints are admin-only unless explicitly
+    listed as public webhook/auth endpoints. Authentication and authorization
+    failures are returned as proper HTTP responses instead of becoming 500s.
+    """
+    public_paths = {
+        "/api/auth/login",
+        "/api/auth/refresh",
+        "/api/auth/logout",
+        "/api/webhook",
+        "/api/webhooks/inbound",
+    }
+
+    is_api_mutation = (
+        request.url.path.startswith("/api/")
+        and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and request.url.path not in public_paths
+    )
+
+    if is_api_mutation:
+        try:
+            _require_admin(request)
+        except HTTPException as exc:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+            )
+
+    return await call_next(request)
+
+def _validate_state_payload(state: Dict) -> None:
+    required_types = {"settings": dict, "actions": list, "decisions": list, "priorities": list}
+    if not isinstance(state, dict) or not all(isinstance(state.get(key), value_type) for key, value_type in required_types.items()):
+        raise HTTPException(status_code=400, detail="State must contain settings plus actions, decisions, and priorities lists.")
+    if any(not isinstance(item, dict) for key in ("actions", "decisions", "priorities") for item in state[key]):
+        raise HTTPException(status_code=400, detail="State records must be JSON objects.")
 
 # Mount static directory for CSS, JS, and static assets
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    # Backward-compatible asset paths for cached/older dashboard HTML.
+    app.mount("/css", StaticFiles(directory=os.path.join(static_dir, "css")), name="css")
+    app.mount("/js", StaticFiles(directory=os.path.join(static_dir, "js")), name="js")
 
 # Ensure storage is ready on startup
 init_storage()
@@ -94,7 +152,7 @@ def serve_dashboard():
     """Serves the CEO Dashboard frontend."""
     static_index = os.path.join(os.path.dirname(__file__), "static", "index.html")
     if os.path.exists(static_index):
-        return FileResponse(static_index, media_type="text/html")
+        return FileResponse(static_index, media_type="text/html", headers={"Cache-Control": "no-store"})
     html_path = os.path.join(os.path.dirname(__file__), "CEO_Dashboard.html")
     if os.path.exists(html_path):
         return FileResponse(html_path, media_type="text/html")
@@ -106,7 +164,7 @@ def serve_login():
     """Serves the login page."""
     login_path = os.path.join(os.path.dirname(__file__), "static", "login.html")
     if os.path.exists(login_path):
-        return FileResponse(login_path, media_type="text/html")
+        return FileResponse(login_path, media_type="text/html", headers={"Cache-Control": "no-store"})
     raise HTTPException(status_code=404, detail="Login page not found")
 
 
@@ -176,10 +234,10 @@ def credentials_status(request: Request):
 @app.post("/api/credentials/test")
 async def test_credentials(request: Request):
     """
-    Live-tests the currently loaded credentials. Requires authentication.
+    Live-tests the currently loaded credentials. Admin-only.
     Optionally validates access to a specific Google Sheet if sheetId is provided.
     """
-    _require_auth(request)
+    _require_admin(request)
     body: dict = {}
     try:
         body = await request.json()
@@ -273,9 +331,9 @@ async def cleanup_fallback_companies(request: Request):
     """
     Removes actions/decisions/priorities assigned to the fallback 'Google Sheet' company
     and removes 'Google Sheet' from the companies list.
-    Requires authentication.
+    Admin-only.
     """
-    _require_auth(request)
+    _require_admin(request)
     state = get_state()
     fallback_name = "Google Sheet"
 
@@ -315,15 +373,14 @@ def get_dashboard_data(request: Request):
 
 @app.post("/api/save")
 async def save_dashboard_data(request: Request):
-    """Saves the entire state payload. Requires authentication."""
-    _require_auth(request)
+    """Saves the entire state payload. Admin-only."""
+    _require_admin(request)
     try:
         new_state = await request.json()
         if not isinstance(new_state, dict):
             raise HTTPException(status_code=400, detail="Invalid state payload, expected JSON object")
 
-        # Ensure schema structure
-        new_state = sync_companies_and_statuses(new_state)
+        _validate_state_payload(new_state)
         save_state(new_state)
         return {"success": True, "lastUpdated": new_state.get("lastUpdated")}
     except HTTPException:
@@ -338,8 +395,8 @@ async def save_dashboard_data(request: Request):
 
 @app.post("/api/actions")
 async def add_action(request: Request):
-    """Adds a new action item. Requires authentication."""
-    _require_auth(request)
+    """Adds a new action item. Admin-only."""
+    _require_admin(request)
     data = await request.json()
     state = get_state()
     norm = normalize_action_item(data)
@@ -353,8 +410,8 @@ async def add_action(request: Request):
 
 @app.put("/api/actions/{action_id}")
 async def update_action(action_id: str, request: Request):
-    """Updates an existing action item. Requires authentication."""
-    _require_auth(request)
+    """Updates an existing action item. Admin-only."""
+    _require_admin(request)
     updates = await request.json()
     state = get_state()
     actions = state.get("actions", [])
@@ -373,8 +430,8 @@ async def update_action(action_id: str, request: Request):
 
 @app.delete("/api/actions/{action_id}")
 def delete_action(action_id: str, request: Request):
-    """Deletes an action item. Requires authentication."""
-    _require_auth(request)
+    """Deletes an action item. Admin-only."""
+    _require_admin(request)
     state = get_state()
     orig_len = len(state.get("actions", []))
     state["actions"] = [a for a in state.get("actions", []) if str(a.get("id")) != str(action_id)]
@@ -390,8 +447,8 @@ def delete_action(action_id: str, request: Request):
 
 @app.post("/api/decisions")
 async def add_decision(request: Request):
-    """Adds a new decision. Requires authentication."""
-    _require_auth(request)
+    """Adds a new decision. Admin-only."""
+    _require_admin(request)
     data = await request.json()
     state = get_state()
     norm = normalize_decision_item(data)
@@ -404,8 +461,8 @@ async def add_decision(request: Request):
 
 @app.put("/api/decisions/{decision_id}")
 async def update_decision(decision_id: str, request: Request):
-    """Updates an existing decision. Requires authentication."""
-    _require_auth(request)
+    """Updates an existing decision. Admin-only."""
+    _require_admin(request)
     updates = await request.json()
     state = get_state()
     decisions = state.get("decisions", [])
@@ -423,8 +480,8 @@ async def update_decision(decision_id: str, request: Request):
 
 @app.delete("/api/decisions/{decision_id}")
 def delete_decision(decision_id: str, request: Request):
-    """Deletes a decision. Requires authentication."""
-    _require_auth(request)
+    """Deletes a decision. Admin-only."""
+    _require_admin(request)
     state = get_state()
     orig_len = len(state.get("decisions", []))
     state["decisions"] = [d for d in state.get("decisions", []) if str(d.get("id")) != str(decision_id)]
@@ -440,8 +497,8 @@ def delete_decision(decision_id: str, request: Request):
 
 @app.post("/api/priorities")
 async def add_priority(request: Request):
-    """Adds a strategic priority. Requires authentication."""
-    _require_auth(request)
+    """Adds a strategic priority. Admin-only."""
+    _require_admin(request)
     data = await request.json()
     state = get_state()
     norm = normalize_priority_item(data)
@@ -454,8 +511,8 @@ async def add_priority(request: Request):
 
 @app.put("/api/priorities/{priority_id}")
 async def update_priority(priority_id: str, request: Request):
-    """Updates a strategic priority. Requires authentication."""
-    _require_auth(request)
+    """Updates a strategic priority. Admin-only."""
+    _require_admin(request)
     updates = await request.json()
     state = get_state()
     priorities = state.get("priorities", [])
@@ -473,8 +530,8 @@ async def update_priority(priority_id: str, request: Request):
 
 @app.delete("/api/priorities/{priority_id}")
 def delete_priority(priority_id: str, request: Request):
-    """Deletes a strategic priority. Requires authentication."""
-    _require_auth(request)
+    """Deletes a strategic priority. Admin-only."""
+    _require_admin(request)
     state = get_state()
     orig_len = len(state.get("priorities", []))
     state["priorities"] = [p for p in state.get("priorities", []) if str(p.get("id")) != str(priority_id)]
@@ -490,8 +547,8 @@ def delete_priority(priority_id: str, request: Request):
 
 @app.post("/api/settings")
 async def update_settings(request: Request):
-    """Updates settings object. Requires authentication."""
-    _require_auth(request)
+    """Updates settings object. Admin-only."""
+    _require_admin(request)
     updates = await request.json()
     state = get_state()
     settings = state.setdefault("settings", {})
@@ -505,8 +562,8 @@ async def update_settings(request: Request):
 
 @app.post("/api/sync/google-sheets")
 async def sync_google_sheets(request: Request):
-    """Triggers live synchronization with Google Sheets. Requires authentication."""
-    _require_auth(request)
+    """Triggers live synchronization with Google Sheets. Admin-only."""
+    _require_admin(request)
     body: dict = {}
     try:
         body = await request.json()
@@ -584,13 +641,13 @@ async def upload_files(
     new_company_name: Optional[str] = Form(default=None),
 ):
     """
-    Handles multi-file uploads. Requires authentication.
+    Handles multi-file uploads. Admin-only.
     - Multiple CSV files (3+ CSVs simultaneously)
     - Multi-tab Excel workbooks (.xlsx, .xls)
     - Mixed uploads
     - Supports Destination routing, Threshold exclusions, Overlap resolution strategies.
     """
-    _require_auth(request)
+    _require_admin(request)
     uploaded_files: List[UploadFile] = []
     
     # 1. Collect from files parameter
@@ -637,6 +694,8 @@ async def upload_files(
 
     if not uploaded_files:
         raise HTTPException(status_code=400, detail="No files provided. Please select at least one .xlsx, .xls, or .csv file.")
+    if len(uploaded_files) > MAX_UPLOAD_FILES:
+        raise HTTPException(status_code=413, detail=f"At most {MAX_UPLOAD_FILES} files may be uploaded at once.")
 
     effective_destination = destination or target or "all"
     
@@ -650,24 +709,24 @@ async def upload_files(
     for f in uploaded_files:
         fname = f.filename or "upload"
         fname_lower = fname.lower()
+        extension = os.path.splitext(fname_lower)[1]
+        if extension not in {".csv", ".xlsx", ".xls"}:
+            raise HTTPException(status_code=400, detail="Only .csv, .xlsx, and .xls uploads are allowed.")
         try:
             content = await f.read()
             if not content:
                 continue
+            if len(content) > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail=f"'{fname}' exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit.")
             stream = io.BytesIO(content)
 
             if fname_lower.endswith(".csv"):
-                sheet_name, records = parse_csv_file(stream, fname)
+                sheet_name, records = parse_csv_file(stream, fname, max_rows=MAX_IMPORT_ROWS)
                 if records:
                     sheets_data[sheet_name] = records
             elif fname_lower.endswith((".xlsx", ".xls")):
-                excel_sheets = parse_excel_file(stream)
+                excel_sheets = parse_excel_file(stream, max_sheets=MAX_EXCEL_SHEETS, max_rows_per_sheet=MAX_IMPORT_ROWS)
                 sheets_data.update(excel_sheets)
-            else:
-                # Try CSV parsing for plain text or generic files
-                sheet_name, records = parse_csv_file(stream, fname)
-                if records:
-                    sheets_data[sheet_name] = records
         except Exception as e:
             logger.error(f"Error parsing uploaded file '{fname}': {e}", exc_info=True)
             raise HTTPException(status_code=400, detail=f"Failed to parse '{fname}': {str(e)}")
@@ -735,10 +794,10 @@ async def upload_files(
 @app.post("/api/conflicts/resolve")
 async def resolve_conflicts(request: Request):
     """
-    Applies manual conflict resolutions. Requires authentication.
+    Applies manual conflict resolutions. Admin-only.
     Expects payload: { "resolutions": [ { "id": str, "type": "action"|"decision"|"priority", "resolution": "use_incoming"|"keep_existing"|"custom", "incoming": dict, "custom_values": dict } ] }
     """
-    _require_auth(request)
+    _require_admin(request)
     try:
         payload = await request.json()
         resolutions = payload.get("resolutions", [])
@@ -872,10 +931,10 @@ async def login_api(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
-    return {
+    from fastapi.responses import JSONResponse
+    response = {
         "success": True,
-        "token": user["token"],
-        "refresh_token": user.get("refresh_token", ""),
+        "refresh_token": user["refresh_token"],
         "user": {
             "email": user["email"],
             "name": user["name"],
@@ -883,18 +942,47 @@ async def login_api(request: Request):
             "user_id": user.get("user_id", "")
         }
     }
+    result = JSONResponse(response)
+    # Secure cookies cannot be sent by browsers over http://localhost. Keep the
+    # production default secure; set COOKIE_SECURE=false only for local HTTP.
+    result.set_cookie("gcc_session", user["token"], httponly=True, secure=os.getenv("COOKIE_SECURE", "false").lower() == "true", samesite="lax", max_age=60 * 60)
+    return result
+
+
+@app.post("/api/auth/refresh")
+async def refresh_auth_session(request: Request):
+    """Rotates an expired Supabase session using the browser's refresh token."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    try:
+        user = refresh_session(str(data.get("refresh_token") or ""))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Session refresh failed. Please log in again.")
+
+    from fastapi.responses import JSONResponse
+    result = JSONResponse({
+        "success": True,
+        "refresh_token": user["refresh_token"],
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+            "user_id": user.get("user_id", ""),
+        },
+    })
+    result.set_cookie("gcc_session", user["token"], httponly=True, secure=os.getenv("COOKIE_SECURE", "false").lower() == "true", samesite="lax", max_age=60 * 60)
+    return result
 
 @app.get("/api/auth/me")
 def get_current_user_api(request: Request):
     """Verifies existing Supabase JWT and returns active user profile."""
-    auth_header = request.headers.get("Authorization", "")
-    token = ""
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-    elif "X-Auth-Token" in request.headers:
-        token = request.headers["X-Auth-Token"].strip()
-    elif "token" in request.query_params:
-        token = request.query_params["token"].strip()
+    token = _extract_token(request)
 
     try:
         user = verify_session_token(token)
@@ -922,7 +1010,7 @@ def _extract_token(request: Request) -> str:
         return auth_header[7:].strip()
     if "X-Auth-Token" in request.headers:
         return request.headers["X-Auth-Token"].strip()
-    return ""
+    return request.cookies.get("gcc_session", "")
 
 
 def _require_auth(request: Request) -> Dict:
@@ -1017,32 +1105,11 @@ async def update_user_role_api(user_id: str, request: Request):
 @app.post("/api/auth/logout")
 async def logout_api(request: Request):
     """Revokes session token."""
-    auth_header = request.headers.get("Authorization", "")
-    token = ""
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-    elif "X-Auth-Token" in request.headers:
-        token = request.headers["X-Auth-Token"].strip()
-
-    revoke_session(token)
-    return {"success": True, "message": "Logged out successfully."}
-
-@app.post("/api/auth/change-password")
-async def change_password_api(request: Request):
-    """Changes admin password."""
-    try:
-        data = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid payload")
-
-    curr_pwd = data.get("currentPassword", "")
-    new_pwd = data.get("newPassword", "")
-
-    success, msg = change_password(curr_pwd, new_pwd)
-    if not success:
-        raise HTTPException(status_code=400, detail=msg)
-
-    return {"success": True, "message": msg}
+    revoke_session(_extract_token(request))
+    from fastapi.responses import JSONResponse
+    response = JSONResponse({"success": True, "message": "Logged out successfully."})
+    response.delete_cookie("gcc_session")
+    return response
 
 # ==========================================
 # Webhooks Integration APIs
@@ -1057,14 +1124,38 @@ async def handle_inbound_webhook(request: Request):
     and updates dashboard state in real time.
     """
     client_ip = request.client.host if request.client else "unknown"
-    secret = (
-        request.headers.get("X-Webhook-Secret")
-        or request.query_params.get("secret")
-    )
+    now = time.monotonic()
+    recent = _webhook_requests[client_ip]
+    while recent and now - recent[0] > 60:
+        recent.popleft()
+    if len(recent) >= WEBHOOK_RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="Webhook rate limit exceeded.")
+    recent.append(now)
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_WEBHOOK_BYTES:
+        raise HTTPException(status_code=413, detail="Webhook payload is too large.")
+    raw_body = await request.body()
+    if len(raw_body) > MAX_WEBHOOK_BYTES:
+        raise HTTPException(status_code=413, detail="Webhook payload is too large.")
+    secret = request.headers.get("X-Webhook-Secret", "")
+    idempotency_key = request.headers.get("X-Idempotency-Key", "").strip()
+    if not idempotency_key or len(idempotency_key) > 128:
+        raise HTTPException(status_code=400, detail="A valid X-Idempotency-Key header is required.")
+    configured_secret = os.getenv("WEBHOOK_SECRET", "").strip()
+    if not configured_secret:
+        logger.error("Webhook rejected because WEBHOOK_SECRET is not configured.")
+        raise HTTPException(status_code=503, detail="Inbound webhook is not configured.")
+    if not hmac.compare_digest(secret, configured_secret):
+        raise HTTPException(status_code=401, detail="Webhook rejected: Invalid or missing secret token.")
+    for key, seen_at in list(_webhook_idempotency.items()):
+        if now - seen_at > 86400:
+            del _webhook_idempotency[key]
+    if idempotency_key in _webhook_idempotency:
+        return {"success": True, "message": "Duplicate webhook ignored.", "duplicate": True}
     explicit_target = request.query_params.get("target")
 
     try:
-        payload = await request.json()
+        payload = json.loads(raw_body)
     except Exception as e:
         logger.warning(f"Webhook received invalid JSON from {client_ip}: {e}")
         log_webhook_event(
@@ -1076,10 +1167,8 @@ async def handle_inbound_webhook(request: Request):
         )
         raise HTTPException(status_code=400, detail="Invalid JSON payload.")
 
-    # Fallback to check body for secret or target
+    # Target may be supplied in the body, but secrets are accepted only in a header.
     if isinstance(payload, dict):
-        if not secret:
-            secret = payload.get("secret") or payload.get("secretKey")
         if not explicit_target:
             explicit_target = payload.get("target") or payload.get("destination")
 
@@ -1095,6 +1184,8 @@ async def handle_inbound_webhook(request: Request):
             raise HTTPException(status_code=401, detail=msg)
         raise HTTPException(status_code=400, detail=msg)
 
+    _webhook_idempotency[idempotency_key] = now
+
     return {
         "success": True,
         "message": msg,
@@ -1105,8 +1196,8 @@ async def handle_inbound_webhook(request: Request):
 
 @app.get("/api/webhooks/logs")
 def get_webhook_logs_api(request: Request):
-    """Returns recent webhook activity logs. Requires authentication."""
-    _require_auth(request)
+    """Returns recent webhook activity logs. Admin-only."""
+    _require_admin(request)
     return {
         "success": True,
         "logs": _get_webhook_logs()
@@ -1114,17 +1205,17 @@ def get_webhook_logs_api(request: Request):
 
 @app.post("/api/webhooks/clear-logs")
 def clear_webhook_logs_api(request: Request):
-    """Clears webhook activity logs. Requires authentication."""
-    _require_auth(request)
+    """Clears webhook activity logs. Admin-only."""
+    _require_admin(request)
     clear_webhook_logs()
     return {"success": True, "message": "Webhook activity logs cleared."}
 
 @app.post("/api/webhooks/test")
 async def trigger_test_webhook(request: Request):
     """
-    Simulates a Google Form or third-party webhook submission for testing. Requires authentication.
+    Simulates a Google Form or third-party webhook submission for testing. Admin-only.
     """
-    _require_auth(request)
+    _require_admin(request)
     body = {}
     try:
         body = await request.json()
@@ -1190,8 +1281,8 @@ async def trigger_test_webhook(request: Request):
 
 @app.get("/api/webhooks/script")
 def get_google_apps_script_api(request: Request):
-    """Returns copy-paste ready Google Apps Script tailored to current host. Requires authentication."""
-    _require_auth(request)
+    """Returns copy-paste ready Google Apps Script tailored to current host. Admin-only."""
+    _require_admin(request)
     host = request.headers.get("host") or "localhost:5000"
     scheme = "https" if "https" in request.headers.get("x-forwarded-proto", "") else "http"
     base_url = f"{scheme}://{host}"

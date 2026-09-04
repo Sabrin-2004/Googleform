@@ -161,12 +161,8 @@
 
     // ── Check if already logged in ────────────────────────────────────
     (async function checkExistingSession() {
-      const token = sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token');
-      if (!token) return;
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
+        const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
           redirectByRole(data.user.role);
@@ -207,10 +203,7 @@
         }
 
         // Persist session
-        const token = data.token;
-        sessionStorage.setItem('gcc_token', token);
-        localStorage.setItem('gcc_token', token);
-        localStorage.setItem('gcc_user', JSON.stringify(data.user));
+        sessionStorage.setItem('gcc_user', JSON.stringify(data.user));
 
         showAlert('Login successful! Redirecting…', 'success');
         setTimeout(() => redirectByRole(data.user.role), 700);

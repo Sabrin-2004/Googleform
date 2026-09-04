@@ -631,25 +631,18 @@
 
     // ── Auth guard: only admins allowed ──────────────────────────────
     function getToken() {
-      return sessionStorage.getItem('gcc_token') || localStorage.getItem('gcc_token');
+      return '';
     }
 
     function getCurrentUser() {
       try {
-        return JSON.parse(localStorage.getItem('gcc_user') || '{}');
+        return JSON.parse(sessionStorage.getItem('gcc_user') || '{}');
       } catch { return {}; }
     }
 
     async function guardAdmin() {
-      const token = getToken();
-      if (!token) {
-        window.location.href = '/login';
-        return;
-      }
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
+        const res = await fetch('/api/auth/me');
         if (!res.ok) { window.location.href = '/login'; return; }
         const data = await res.json();
         if (data.user.role !== 'admin') {
@@ -664,26 +657,15 @@
 
     // ── Logout ────────────────────────────────────────────────────────
     $('logout-btn').addEventListener('click', async () => {
-      const token = getToken();
-      if (token) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + token }
-        }).catch(() => {});
-      }
-      sessionStorage.removeItem('gcc_token');
-      localStorage.removeItem('gcc_token');
-      localStorage.removeItem('gcc_user');
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      sessionStorage.removeItem('gcc_user');
       window.location.href = '/login';
     });
 
     // ── Load Users ────────────────────────────────────────────────────
     async function loadUsers() {
-      const token = getToken();
       try {
-        const res = await fetch('/api/admin/users', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
+        const res = await fetch('/api/admin/users');
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Failed to load users');
         renderUsers(data.users || []);

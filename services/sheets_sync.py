@@ -455,7 +455,8 @@ def process_multi_sheet_data(
         "updated": metrics.get("updated", 0),
         "skipped": metrics.get("skipped", 0),
         "flagged": metrics.get("flagged", 0),
-        "merged": metrics.get("merged", 0)
+        "merged": metrics.get("merged", 0),
+        "deleted": metrics.get("deleted", 0)
     }
     # Update accurate domain counts
     if target_key == "register":
@@ -536,10 +537,11 @@ def perform_google_sheets_sync(
 
     # Formulate summary message
     total_processed = counts.get('appended', 0) + counts.get('updated', 0)
+    deleted_str = f" ({counts['deleted']} removed, not in sheet)" if counts.get('deleted') else ""
     skipped_str = f" ({counts['skipped']} skipped below threshold)" if counts.get('skipped') else ""
     flagged_str = f" ({counts['flagged']} flagged for review)" if counts.get('flagged') else ""
     
-    msg = f"Synced {total_processed} record(s) ({counts.get('appended',0)} new, {counts.get('updated',0)} updated) across {counts['sheets_processed']} sheet(s){skipped_str}{flagged_str}."
+    msg = f"Synced {total_processed} record(s) ({counts.get('appended',0)} new, {counts.get('updated',0)} updated) across {counts['sheets_processed']} sheet(s){deleted_str}{skipped_str}{flagged_str}."
 
     gs_settings['syncMessage'] = msg
     return True, msg, updated_state, counts
